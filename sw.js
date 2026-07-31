@@ -1,6 +1,6 @@
 // Bump CACHE on every deploy that changes index.html, or clients keep serving
 // the stale schedule from cache indefinitely.
-const CACHE = 'binday-v5';
+const CACHE = 'binday-v6';
 const ASSETS = [
   './index.html',
   './manifest.json',

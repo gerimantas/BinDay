@@ -493,7 +493,7 @@ function render(now) {
     <div class="actions">
       <button id="ics">
         Įkelti į kalendorių
-        <span class="sub">${upcoming.length} įvykiai · priminimas 17:00 iš vakaro</span>
+        <span class="sub">${upcoming.length} įvykiai · priminimai 17:00 ir 20:00 iš vakaro</span>
       </button>
     </div>`;
 
@@ -613,10 +613,19 @@ function buildICS(entries) {
       // missing it costs 84 days, so it should win over the fortnightly mixed bin.
       `COLOR:${ordered[0].color}`,
       'TRANSP:TRANSPARENT',
+      // Two reminders the evening before, against an all-day event (00:00), so the
+      // offsets count back from midnight: -PT7H is 17:00, -PT4H is 20:00. The first
+      // catches you while there's still daylight, the second before bed — a single
+      // alert is easy to dismiss and then forget with the bins still inside.
       'BEGIN:VALARM',
       'ACTION:DISPLAY',
       fold(`DESCRIPTION:${icsEscape('Rytoj išveža: ' + names)}`),
       'TRIGGER:-PT7H',
+      'END:VALARM',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      fold(`DESCRIPTION:${icsEscape('Paskutinis priminimas — rytoj išveža: ' + names)}`),
+      'TRIGGER:-PT4H',
       'END:VALARM',
       'END:VEVENT'
     );
