@@ -3,8 +3,8 @@
 Waste collection schedule PWA for Žalgirio g. 8A, Juragiai. Answers one question —
 *do the bins go out tonight?* — and exports the whole schedule to a calendar.
 
-**Live:** https://gerimantas.github.io/BinDay/
-**QR:** https://gerimantas.github.io/BinDay/qr.html — scan sheet, prints on white
+- **Live:** https://gerimantas.github.io/BinDay/
+- **QR:** https://gerimantas.github.io/BinDay/qr.html — scan sheet, prints on white
 
 ## Containers
 
