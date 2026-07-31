@@ -294,6 +294,9 @@ const COLLECTED = '2026-07-30';
 const CONTAINERS = [
   {
     type: 'MIXED', label: 'Mišrios', id: '52-MK-036668',
+    // Calendar clients won't honour a colour we set, so the emoji carries the
+    // colour coding instead. Chosen to match the app's neon palette.
+    emoji: '🔴', color: 'red',
     operator: 'UAB Kauno švara', until: '2027-07-20',
     dates: ['2026-08-04','2026-08-18','2026-09-01','2026-09-15','2026-09-29',
             '2026-10-13','2026-10-27','2026-11-10','2026-11-24','2026-12-08',
@@ -304,6 +307,7 @@ const CONTAINERS = [
   },
   {
     type: 'PACKAGING', label: 'Pakuotės', id: '52-P-22781',
+    emoji: '🟡', color: 'gold',
     operator: 'Ekonovus', until: '2027-03-23',
     dates: ['2026-08-04','2026-08-25','2026-09-15','2026-10-06','2026-10-27',
             '2026-11-17','2026-12-08','2026-12-29','2027-01-19','2027-02-09',
@@ -311,6 +315,7 @@ const CONTAINERS = [
   },
   {
     type: 'GLASS', label: 'Stiklas', id: '52-S-24716',
+    emoji: '🟢', color: 'springgreen',
     operator: 'Ekonovus', until: '2027-07-06',
     dates: ['2026-08-04','2026-10-27','2027-01-19','2027-04-13','2027-07-06']
   }
@@ -525,8 +530,20 @@ function buildICS(entries) {
   for (const e of entries) {
     const compact = e.iso.replace(/-/g, '');
     const end = isoLocal(new Date(parseISO(e.iso).getTime() + 864e5)).replace(/-/g, '');
-    const names = e.types.map(c => c.label).join(', ');
-    const detail = e.types.map(c => `${c.label} (${c.id})`).join('\n');
+    // One ordering throughout the event — rarest bin first — so the marks and the
+    // words line up instead of reading in opposite directions.
+    const ordered = [...e.types].sort((a, b) => a.dates.length - b.dates.length);
+    const names = ordered.map(c => c.label).join(', ');
+    const detail = ordered.map(c => `${c.emoji} ${c.label} (${c.id})`).join('\n');
+
+    // Colour coding has to survive into the calendar, and no reliable mechanism
+    // exists: RFC 7986 COLOR is ignored by Google, and per-event colours can only
+    // be set through each provider's own API. Emoji in the title is the one thing
+    // that renders identically everywhere, so the marks lead the summary — one
+    // circle per bin, matching the app's red / yellow / green.
+    // Rarest bin first: in a truncated calendar cell the leading mark is the one
+    // that survives, and that should be the pickup you cannot afford to miss.
+    const marks = ordered.map(c => c.emoji).join('');
 
     lines.push(
       'BEGIN:VEVENT',
@@ -535,9 +552,14 @@ function buildICS(entries) {
       `DTSTAMP:${stamp(now)}`,
       `DTSTART;VALUE=DATE:${compact}`,
       `DTEND;VALUE=DATE:${end}`,
-      fold(`SUMMARY:🗑 ${icsEscape(names)}`),
+      fold(`SUMMARY:${marks} ${icsEscape(names)}`),
       fold(`DESCRIPTION:${icsEscape(detail)}`),
       fold(`LOCATION:${icsEscape(ADDRESS)}`),
+      // Honoured by Apple Calendar and anything else implementing RFC 7986;
+      // harmless where it isn't. A day can hold several bins but only one colour,
+      // so it goes to the rarest one due — glass never falls on its own here, and
+      // missing it costs 84 days, so it should win over the fortnightly mixed bin.
+      `COLOR:${ordered[0].color}`,
       'TRANSP:TRANSPARENT',
       'BEGIN:VALARM',
       'ACTION:DISPLAY',
