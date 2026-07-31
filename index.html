@@ -212,6 +212,29 @@
     text-align: right;
   }
 
+  .year-sep {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+    margin: 18px 0 8px 4px;
+  }
+
+  .more {
+    width: 100%;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px dashed var(--border-subtle);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .more:active { background: var(--bg-surface); }
+
   .legend {
     display: flex;
     justify-content: center;
@@ -373,6 +396,10 @@ function relativeLabel(days) {
   return `po ${weeks} sav.`;
 }
 
+/* Whether the user has asked to see the whole horizon. Deliberately not persisted:
+   the minute-tick re-render reads it, but a fresh open should start compact. */
+let expanded = false;
+
 function render(now) {
   const today = isoLocal(now);
   const calendar = buildCalendar();
@@ -421,11 +448,24 @@ function render(now) {
       <div class="types">${chips(next.types)}</div>
     </div>`;
 
-  const rest = upcoming.slice(1, 9);
+  // Show a season's worth by default — enough to plan around without a wall of
+  // dates — and keep the rest one tap away rather than dropping it. The full list
+  // runs to the operator's horizon, which is where "no more data" genuinely starts.
+  const PREVIEW = 8;
+  const rest = expanded ? upcoming.slice(1) : upcoming.slice(1, PREVIEW + 1);
+  const hidden = upcoming.length - 1 - rest.length;
+
   if (rest.length) {
     html += '<h2>Toliau</h2>';
+    let shownYear = parseISO(today).getFullYear();
     for (const e of rest) {
       const d = parseISO(e.iso);
+      // Once the list runs past New Year, "13 sausio" is ambiguous without the year.
+      // A divider costs one line and answers it for every row beneath it.
+      if (d.getFullYear() !== shownYear) {
+        shownYear = d.getFullYear();
+        html += `<div class="year-sep">${shownYear}</div>`;
+      }
       const rel = relativeLabel(daysBetween(today, e.iso));
       html += `
         <div class="row">
@@ -437,6 +477,13 @@ function render(now) {
           <div class="rel">${rel || ''}</div>
         </div>`;
     }
+
+    if (hidden > 0) {
+      html += `<button id="more" class="more">Rodyti visus (dar ${hidden})</button>`;
+    } else if (expanded) {
+      html += '<button id="less" class="more">Rodyti mažiau</button>';
+    }
+
     html += '<div class="legend">' + CONTAINERS
       .map(c => `<span class="${c.type}"><span class="dot ${c.type}"></span>${c.label}</span>`)
       .join('') + '</div>';
@@ -465,6 +512,11 @@ function render(now) {
 
   app.innerHTML = html;
   document.getElementById('ics').addEventListener('click', () => downloadICS(upcoming));
+
+  const more = document.getElementById('more');
+  if (more) more.addEventListener('click', () => { expanded = true; refresh(); });
+  const less = document.getElementById('less');
+  if (less) less.addEventListener('click', () => { expanded = false; refresh(); });
 }
 
 /* ------------------------------------------------------------------
