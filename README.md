@@ -48,17 +48,24 @@ Coverage differs per operator — Švara publishes a rolling window, Ekonovus a 
 forward count — so one container expiring before the others is normal.
 
 To refresh, use the `atlieku-grafikai` skill (`C:\Users\retco\.ai-skills\atlieku-grafikai`),
-which scrapes both operators and regenerates the source markdown at
-`C:\Users\retco\Projects\atlieku_isv_grafikai\Atlieku_isvezimo_grafikai.md`. The
-fastest path for Švara is its unauthenticated PDF endpoint:
+which handles both operators and regenerates `data/Atlieku_isvezimo_grafikai.md`.
+
+Švara needs no browser at all — it serves the whole 12-month calendar as an
+unauthenticated PDF, which the skill parses in about two seconds:
 
 ```bash
 curl -s "https://grafikai.svara.lt/api/download/EKzJW7DK" -o schedule.pdf
-python scripts/svara_from_pdf.py schedule.pdf
+python <skill>/scripts/svara_from_pdf.py schedule.pdf
 ```
+
+Ekonovus has no equivalent — its schedule lives inside a Power BI embed and has to be
+driven in a browser.
 
 After changing the dates, **bump `CACHE` in `sw.js`** — otherwise installed clients keep
 serving the old schedule from cache.
+
+**Pending as of 2026-07-31:** Švara has extended MIXED to 2027-10-12, six dates beyond
+what this repo currently records.
 
 ## Stack
 
