@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BinDay — Atliekų išvežimas</title>
+<meta name="description" content="Atliekų išvežimo grafikas — Žalgirio g. 8A, Juragiai. Mišrios, pakuotės, stiklas.">
+<meta name="theme-color" content="#09090b">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BinDay">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    --bg-base: #09090b;
+    --bg-surface: #18181b;
+    --bg-active: #27272a;
+
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-dim: #52525b;
+    --border-subtle: #27272a;
+
+    /* One colour per waste type — the same hue is used for the dot, the label and
+       the card glow, so a glance at colour alone identifies the bin. */
+    --mixed: #a1a1aa;      /* grey — mišrios komunalinės */
+    --packaging: #f59e0b;  /* amber — pakuotės */
+    --glass: #10b981;      /* green — stiklas */
+
+    --accent-soon: #ef4444;
+    --header-h: 76px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-secondary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 17px;
+    line-height: 1.35;
+    min-height: 100vh;
+    padding: calc(var(--header-h) + 16px) 16px 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    background: rgba(24, 24, 27, 0.92);
+    backdrop-filter: blur(12px);
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 14px 16px;
+    z-index: 10;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  header .addr {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  /* ---- Hero: the answer to "do I put the bin out tonight?" ---- */
+  .hero {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 22px 20px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .hero.tonight {
+    border-color: var(--accent-soon);
+    box-shadow: 0 0 0 1px var(--accent-soon), 0 0 40px rgba(239, 68, 68, 0.18);
+  }
+  .hero .when {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+  .hero.tonight .when { color: var(--accent-soon); }
+  .hero .days {
+    font-size: 46px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.05;
+    margin: 6px 0 2px;
+  }
+  .hero .date {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .hero .types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--bg-active);
+    border-radius: 999px;
+    padding: 7px 14px 7px 11px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot.MIXED { background: var(--mixed); }
+  .dot.PACKAGING { background: var(--packaging); }
+  .dot.GLASS { background: var(--glass); }
+
+  /* ---- Upcoming list ---- */
+  h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    margin: 26px 0 10px 4px;
+    font-weight: 600;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 13px 15px;
+    margin-bottom: 8px;
+  }
+  .row .left { min-width: 84px; flex-shrink: 0; }
+  .row .d {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .row .wd {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  /* Keep list rows a uniform height: three chips on one line would wrap and make
+     the row three times taller than its neighbours, so inside the list the chips
+     collapse to bare dots. The hero still shows full labels, which is where the
+     naming actually needs to be legible. */
+  .row .marks {
+    display: flex;
+    gap: 7px;
+    flex: 1;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .row .marks .dot { width: 13px; height: 13px; }
+  .row .rel {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 62px;
+    text-align: right;
+  }
+
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  /* ---- Actions ---- */
+  .actions { margin-top: 26px; }
+  button {
+    width: 100%;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-bottom: 9px;
+  }
+  button:active { background: var(--bg-active); }
+  button .sub {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  footer {
+    margin-top: 30px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    text-align: center;
+  }
+  footer .warn { color: var(--accent-soon); }
+
+  @media (min-width: 560px) {
+    body { max-width: 520px; margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BinDay</h1>
+  <div class="addr">Žalgirio g. 8A, Juragiai</div>
+</header>
+
+<main id="app" aria-live="polite"></main>
+
+<script>
+/* ------------------------------------------------------------------
+   Schedule data — generated from Atlieku_isvezimo_grafikai.md
+
+   Dates are stored as an explicit list rather than anchor+interval on
+   purpose: Švara's schedule does deviate (the window before 2026-08
+   contained Monday pickups and an extra Wednesday run on 2026-07-22).
+   Computing dates from a fixed interval would silently skip those, and
+   a missed pickup is the one failure the user actually notices.
+
+   `until` is the operator's published horizon, not a guess. Past it the
+   app says "refresh needed" instead of inventing dates.
+------------------------------------------------------------------ */
+const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav.';
+const COLLECTED = '2026-07-30';
+
+const CONTAINERS = [
+  {
+    type: 'MIXED', label: 'Mišrios', id: '52-MK-036668',
+    operator: 'UAB Kauno švara', until: '2027-07-20',
+    dates: ['2026-08-04','2026-08-18','2026-09-01','2026-09-15','2026-09-29',
+            '2026-10-13','2026-10-27','2026-11-10','2026-11-24','2026-12-08',
+            '2026-12-22','2027-01-05','2027-01-19','2027-02-02','2027-02-16',
+            '2027-03-02','2027-03-16','2027-03-30','2027-04-13','2027-04-27',
+            '2027-05-11','2027-05-25','2027-06-08','2027-06-22','2027-07-06',
+            '2027-07-20']
+  },
+  {
+    type: 'PACKAGING', label: 'Pakuotės', id: '52-P-22781',
+    operator: 'Ekonovus', until: '2027-03-23',
+    dates: ['2026-08-04','2026-08-25','2026-09-15','2026-10-06','2026-10-27',
+            '2026-11-17','2026-12-08','2026-12-29','2027-01-19','2027-02-09',
+            '2027-03-02','2027-03-23']
+  },
+  {
+    type: 'GLASS', label: 'Stiklas', id: '52-S-24716',
+    operator: 'Ekonovus', until: '2027-07-06',
+    dates: ['2026-08-04','2026-10-27','2027-01-19','2027-04-13','2027-07-06']
+  }
+];
+
+const WD = ['Sekmadienis','Pirmadienis','Antradienis','Trečiadienis',
+            'Ketvirtadienis','Penktadienis','Šeštadienis'];
+const WD_SHORT = ['Sekm','Pir','Ant','Tre','Ket','Pen','Šeš'];
+const MON_GEN = ['sausio','vasario','kovo','balandžio','gegužės','birželio',
+                 'liepos','rugpjūčio','rugsėjo','spalio','lapkričio','gruodžio'];
+
+/* Local-date ISO string. Deliberately not toISOString(), which converts to UTC
+   and rolls the date back an hour before midnight in Lithuania — the app would
+   claim a pickup was "today" on the evening before. */
+function isoLocal(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+function parseISO(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function daysBetween(fromISO, toISO) {
+  return Math.round((parseISO(toISO) - parseISO(fromISO)) / 864e5);
+}
+
+function prettyDate(iso) {
+  const d = parseISO(iso);
+  return d.getDate() + ' ' + MON_GEN[d.getMonth()];
+}
+
+/* Merge every container's dates into one day-keyed calendar: one row per day
+   listing the bins due, which is how the bins actually get taken out. */
+function buildCalendar() {
+  const byDay = new Map();
+  for (const c of CONTAINERS) {
+    for (const iso of c.dates) {
+      if (!byDay.has(iso)) byDay.set(iso, []);
+      byDay.get(iso).push(c);
+    }
+  }
+  return [...byDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([iso, types]) => ({ iso, types }));
+}
+
+function relativeLabel(days) {
+  if (days === 0) return 'šiandien';
+  if (days === 1) return 'rytoj';
+  if (days < 0) return null;
+  if (days < 7) return `po ${days} d.`;
+  const weeks = Math.round(days / 7);
+  return `po ${weeks} sav.`;
+}
+
+function render(now) {
+  const today = isoLocal(now);
+  const calendar = buildCalendar();
+  const upcoming = calendar.filter(e => e.iso >= today);
+  const app = document.getElementById('app');
+
+  if (!upcoming.length) {
+    app.innerHTML = `
+      <div class="hero">
+        <div class="when">Grafikas pasibaigė</div>
+        <div class="days" style="font-size:30px">Reikia atnaujinti</div>
+        <div class="date">Paskutinė data: ${calendar.length ? calendar[calendar.length - 1].iso : '—'}</div>
+      </div>
+      <footer>Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
+    return;
+  }
+
+  const next = upcoming[0];
+  const days = daysBetween(today, next.iso);
+  const nextDate = parseISO(next.iso);
+
+  // "Tonight" is the actionable state: the operator asks for bins out the evening
+  // before, so a pickup tomorrow is what needs acting on right now.
+  const tonight = days === 1 || (days === 0 && now.getHours() < 8);
+
+  let headline, when;
+  if (days === 0) { headline = 'Šiandien'; when = 'Išveža'; }
+  else if (days === 1) { headline = 'Rytoj'; when = 'Išstumk šįvakar'; }
+  else { headline = `Po ${days} d.`; when = 'Kitas išvežimas'; }
+
+  const chips = types => types
+    .map(c => `<span class="chip"><span class="dot ${c.type}"></span>${c.label}</span>`)
+    .join('');
+
+  // In list rows only the coloured dot is shown, so it needs a key. Title text
+  // covers desktop hover; the legend below covers touch.
+  const dots = types => types
+    .map(c => `<span class="dot ${c.type}" title="${c.label}"></span>`)
+    .join('');
+
+  let html = `
+    <div class="hero${tonight ? ' tonight' : ''}">
+      <div class="when">${when}</div>
+      <div class="days">${headline}</div>
+      <div class="date">${WD[nextDate.getDay()]}, ${prettyDate(next.iso)}</div>
+      <div class="types">${chips(next.types)}</div>
+    </div>`;
+
+  const rest = upcoming.slice(1, 9);
+  if (rest.length) {
+    html += '<h2>Toliau</h2>';
+    for (const e of rest) {
+      const d = parseISO(e.iso);
+      const rel = relativeLabel(daysBetween(today, e.iso));
+      html += `
+        <div class="row">
+          <div class="left">
+            <div class="d">${prettyDate(e.iso)}</div>
+            <div class="wd">${WD_SHORT[d.getDay()]}</div>
+          </div>
+          <div class="marks">${dots(e.types)}</div>
+          <div class="rel">${rel || ''}</div>
+        </div>`;
+    }
+    html += '<div class="legend">' + CONTAINERS
+      .map(c => `<span><span class="dot ${c.type}"></span>${c.label}</span>`)
+      .join('') + '</div>';
+  }
+
+  html += `
+    <div class="actions">
+      <button id="ics">
+        Įkelti į kalendorių
+        <span class="sub">${upcoming.length} įvykiai · priminimas 17:00 iš vakaro</span>
+      </button>
+    </div>`;
+
+  // Surface each container's horizon: they differ (Ekonovus publishes a fixed
+  // count, Švara a rolling window), so one running out is normal and shouldn't
+  // read as the whole schedule being stale.
+  const expiring = CONTAINERS
+    .filter(c => daysBetween(today, c.until) < 60)
+    .map(c => c.label);
+
+  html += `<footer>
+    Duomenys surinkti ${COLLECTED}<br>
+    Konteinerius paruošti iš vakaro
+    ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
+  </footer>`;
+
+  app.innerHTML = html;
+  document.getElementById('ics').addEventListener('click', () => downloadICS(upcoming));
+}
+
+/* ------------------------------------------------------------------
+   ICS export
+
+   Every pickup is written as its own VEVENT rather than one RRULE. Švara's
+   own feed uses RRULE (every 2nd Tuesday), which cannot express the off-cycle
+   runs that do occur — those would silently vanish from the calendar. Explicit
+   events cost a few KB and stay correct.
+
+   VALARM fires at -PT7H against an all-day event (00:00), i.e. 17:00 the
+   previous day, matching the operator's "put bins out the evening before".
+------------------------------------------------------------------ */
+function icsEscape(s) {
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;')
+          .replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+/* RFC 5545 caps lines at 75 *octets*, not characters — Lithuanian ž/ų/ė take two
+   bytes each in UTF-8, so counting characters overshoots the limit on exactly the
+   lines that contain the address. Google and Apple tolerate over-long lines but
+   Outlook truncates them, which would silently drop the location.
+
+   Fold on a byte budget, and never split a multi-byte character in half. */
+function fold(line) {
+  const enc = new TextEncoder();
+  if (enc.encode(line).length <= 75) return line;
+
+  const out = [];
+  let cur = '';
+  let budget = 75;          // first line: no leading space
+  for (const ch of line) {  // iterate code points, not UTF-16 units
+    const size = enc.encode(ch).length;
+    if (enc.encode(cur).length + size > budget) {
+      out.push(cur);
+      cur = ch;
+      budget = 74;          // continuation lines lose one octet to the space
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) out.push(cur);
+  return out[0] + out.slice(1).map(s => '\r\n ' + s).join('');
+}
+
+function stamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) +
+         'T' + p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds()) + 'Z';
+}
+
+function buildICS(entries) {
+  const now = new Date();
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//BinDay//Waste Schedule//LT',
+    'CALSCALE:GREGORIAN',
+    'X-WR-CALNAME:Atliekų išvežimas',
+    'X-WR-TIMEZONE:Europe/Vilnius'
+  ];
+
+  for (const e of entries) {
+    const compact = e.iso.replace(/-/g, '');
+    const end = isoLocal(new Date(parseISO(e.iso).getTime() + 864e5)).replace(/-/g, '');
+    const names = e.types.map(c => c.label).join(', ');
+    const detail = e.types.map(c => `${c.label} (${c.id})`).join('\n');
+
+    lines.push(
+      'BEGIN:VEVENT',
+      // Stable UID per day: re-importing updates the event instead of duplicating it.
+      `UID:binday-${compact}@binday.local`,
+      `DTSTAMP:${stamp(now)}`,
+      `DTSTART;VALUE=DATE:${compact}`,
+      `DTEND;VALUE=DATE:${end}`,
+      fold(`SUMMARY:🗑 ${icsEscape(names)}`),
+      fold(`DESCRIPTION:${icsEscape(detail)}`),
+      fold(`LOCATION:${icsEscape(ADDRESS)}`),
+      'TRANSP:TRANSPARENT',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      fold(`DESCRIPTION:${icsEscape('Rytoj išveža: ' + names)}`),
+      'TRIGGER:-PT7H',
+      'END:VALARM',
+      'END:VEVENT'
+    );
+  }
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+function downloadICS(entries) {
+  const blob = new Blob([buildICS(entries)], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'binday.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* A single `now` per render keeps every relative label consistent — no chance
+   of the hero saying "tomorrow" while a row says "today" after a midnight tick. */
+function refresh() { render(new Date()); }
+
+refresh();
+setInterval(refresh, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refresh();
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
