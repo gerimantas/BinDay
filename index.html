@@ -26,13 +26,21 @@
     --text-dim: #52525b;
     --border-subtle: #27272a;
 
-    /* One colour per waste type — the same hue is used for the dot, the label and
-       the card glow, so a glance at colour alone identifies the bin. */
-    --mixed: #a1a1aa;      /* grey — mišrios komunalinės */
-    --packaging: #f59e0b;  /* amber — pakuotės */
-    --glass: #10b981;      /* green — stiklas */
+    /* One neon colour per waste type — the same hue drives the dot, the chip border
+       and its glow, so colour alone identifies the bin at a glance.
+       Saturated hues on a near-black ground read as neon; the matching -glow value
+       is the same colour at low alpha, used for the halo. */
+    --mixed: #ff2d55;      /* neon red — mišrios komunalinės */
+    --mixed-glow: rgba(255, 45, 85, 0.55);
+    --packaging: #ffe600;  /* neon yellow — pakuotės */
+    --packaging-glow: rgba(255, 230, 0, 0.5);
+    --glass: #00ff9d;      /* neon green — stiklas */
+    --glass-glow: rgba(0, 255, 157, 0.5);
 
-    --accent-soon: #ef4444;
+    /* Urgency can no longer be signalled by red — red is a bin colour now. The
+       "tonight" state is carried by a pulsing white-hot ring instead, which reads
+       as urgent regardless of which bins happen to be due. */
+    --accent-soon: #ffffff;
     --header-h: 76px;
   }
 
@@ -82,7 +90,16 @@
   }
   .hero.tonight {
     border-color: var(--accent-soon);
-    box-shadow: 0 0 0 1px var(--accent-soon), 0 0 40px rgba(239, 68, 68, 0.18);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.55), 0 0 24px rgba(255,255,255,0.10); }
+    50%      { box-shadow: 0 0 0 1px rgba(255,255,255,1.00), 0 0 44px rgba(255,255,255,0.26); }
+  }
+  /* Motion is the urgency cue here, so respect a user who has asked for less of it —
+     the border alone still distinguishes the state. */
+  @media (prefers-reduced-motion: reduce) {
+    .hero.tonight { animation: none; box-shadow: 0 0 0 1px var(--accent-soon); }
   }
   .hero .when {
     font-size: 13px;
@@ -90,7 +107,7 @@
     letter-spacing: 0.12em;
     color: var(--text-dim);
   }
-  .hero.tonight .when { color: var(--accent-soon); }
+  .hero.tonight .when { color: var(--accent-soon); font-weight: 700; }
   .hero .days {
     font-size: 46px;
     font-weight: 800;
@@ -115,20 +132,28 @@
     align-items: center;
     gap: 7px;
     background: var(--bg-active);
+    border: 1px solid transparent;
     border-radius: 999px;
     padding: 7px 14px 7px 11px;
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
   }
+  /* Tint the chip itself, not just the dot — at arm's length the dot is too small
+     to carry the identification on its own. */
+  .chip.MIXED     { border-color: var(--mixed);     color: var(--mixed); }
+  .chip.PACKAGING { border-color: var(--packaging); color: var(--packaging); }
+  .chip.GLASS     { border-color: var(--glass);     color: var(--glass); }
+
   .dot {
     width: 10px; height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .dot.MIXED { background: var(--mixed); }
-  .dot.PACKAGING { background: var(--packaging); }
-  .dot.GLASS { background: var(--glass); }
+  /* The halo is what makes these read as neon rather than as flat colour swatches. */
+  .dot.MIXED     { background: var(--mixed);     box-shadow: 0 0 8px var(--mixed-glow); }
+  .dot.PACKAGING { background: var(--packaging); box-shadow: 0 0 8px var(--packaging-glow); }
+  .dot.GLASS     { background: var(--glass);     box-shadow: 0 0 8px var(--glass-glow); }
 
   /* ---- Upcoming list ---- */
   h2 {
@@ -173,7 +198,12 @@
     justify-content: flex-end;
     align-items: center;
   }
+  /* In rows the dot is the only carrier of identity, so it gets a wider halo than
+     the chip version where the label already does the work. */
   .row .marks .dot { width: 13px; height: 13px; }
+  .row .marks .dot.MIXED     { box-shadow: 0 0 11px var(--mixed-glow); }
+  .row .marks .dot.PACKAGING { box-shadow: 0 0 11px var(--packaging-glow); }
+  .row .marks .dot.GLASS     { box-shadow: 0 0 11px var(--glass-glow); }
   .row .rel {
     font-size: 12px;
     color: var(--text-dim);
@@ -192,6 +222,11 @@
     color: var(--text-dim);
   }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  /* Colour the legend text too, so the key itself demonstrates the mapping.
+     Class on the span rather than :has(), which older WebKit lacks. */
+  .legend .MIXED     { color: var(--mixed); }
+  .legend .PACKAGING { color: var(--packaging); }
+  .legend .GLASS     { color: var(--glass); }
 
   /* ---- Actions ---- */
   .actions { margin-top: 26px; }
@@ -364,7 +399,7 @@ function render(now) {
   else { headline = `Po ${days} d.`; when = 'Kitas išvežimas'; }
 
   const chips = types => types
-    .map(c => `<span class="chip"><span class="dot ${c.type}"></span>${c.label}</span>`)
+    .map(c => `<span class="chip ${c.type}"><span class="dot ${c.type}"></span>${c.label}</span>`)
     .join('');
 
   // In list rows only the coloured dot is shown, so it needs a key. Title text
@@ -398,7 +433,7 @@ function render(now) {
         </div>`;
     }
     html += '<div class="legend">' + CONTAINERS
-      .map(c => `<span><span class="dot ${c.type}"></span>${c.label}</span>`)
+      .map(c => `<span class="${c.type}"><span class="dot ${c.type}"></span>${c.label}</span>`)
       .join('') + '</div>';
   }
 
