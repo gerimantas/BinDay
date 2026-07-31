@@ -1,11 +1,13 @@
 // Bump CACHE on every deploy that changes index.html, or clients keep serving
 // the stale schedule from cache indefinitely.
-const CACHE = 'binday-v1';
+const CACHE = 'binday-v2';
 const ASSETS = [
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './apple-touch-icon.png',
+  './favicon.ico'
 ];
 
 self.addEventListener('install', e => {
