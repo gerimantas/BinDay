@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BinDay — QR</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #09090b;
+    color: #a1a1aa;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+  .card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 20px;
+    padding: 36px 32px 28px;
+    text-align: center;
+    max-width: 380px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fafafa;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .sub { font-size: 13px; color: #52525b; margin-top: 4px; }
+  .qr {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    margin: 24px 0 20px;
+    line-height: 0;
+  }
+  .qr img { width: 100%; height: auto; display: block; }
+  .url {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: #a1a1aa;
+    word-break: break-all;
+  }
+  .hint {
+    font-size: 12px;
+    color: #52525b;
+    margin-top: 14px;
+    line-height: 1.6;
+  }
+
+  /* Printed on paper the dark theme wastes toner and lowers scan contrast, so the
+     print stylesheet flips to plain black on white. */
+  @media print {
+    body { background: #fff; color: #000; display: block; padding: 0; }
+    .card { border: none; background: #fff; margin: 0 auto; max-width: 420px; }
+    h1 { color: #000; }
+    .sub, .url, .hint { color: #444; }
+    .qr { padding: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>BinDay</h1>
+    <div class="sub">Atliekų išvežimo grafikas</div>
+
+    <div class="qr">
+      <img src="qr.png" alt="QR kodas į https://gerimantas.github.io/BinDay/">
+    </div>
+
+    <div class="url">gerimantas.github.io/BinDay</div>
+
+    <div class="hint">
+      Nuskenuok telefonu, tada<br>
+      „Įtraukti į pradžios ekraną“
+    </div>
+  </div>
+</body>
+</html>
