@@ -2,16 +2,25 @@
 
 ## Status
 
-**active** — 2026-07-31 (S1)
+**active** — 2026-08-01 (S2)
 
 Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ and
 installable to a phone home screen. Answers one question — do the bins go out tonight —
-and exports the whole schedule to a calendar with reminders at 17:00 and 20:00 the
-evening before.
+and exports the whole schedule to a calendar.
 
-Built this session from scratch: scraped both operators, produced the canonical markdown,
-then the app. Repo has 7 commits, everything pushed. The old `atlieku_isv_grafikai` data
-folder was folded into `BinDay/data/`.
+This session renamed the skill `atlieku-grafikai` → `binday` and widened it to cover the
+app, added `CLAUDE.md`, and then spent the bulk of its time on one question: **what would
+it take for someone else to enter their own address and get their own schedule?**
+
+Answer, all verified rather than assumed: **no server is needed.** Both operators expose
+anonymous HTTP APIs that support bulk enumeration, so catalogues can be built offline by a
+scheduled job and published as static JSON on GitHub Pages, which already sends
+`Access-Control-Allow-Origin: *`. A Cloudflare Worker was prototyped and proven to work,
+then found unnecessary. Details in [[wiki/bin-day/svara-address-api]] and
+[[wiki/bin-day/ekonovus-powerbi-api]].
+
+Nothing was implemented yet — this was research. The app still serves one hardcoded
+address.
 
 Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
 
@@ -23,6 +32,13 @@ Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
 
 ## Next Tasks
 
+- **Multi-address support — research done, nothing built.** Decide scope, then build:
+  a scheduled Python job enumerates both operators into static JSON, the app gains a
+  settings sheet (manual address + optional GPS) and fetches its schedule instead of
+  carrying it inline. No backend. Open question before starting: whether to ship
+  Kauno r. only (~13 min to enumerate Švara, 58 477 containers) or all Švara
+  municipalities. Full findings: [[wiki/bin-day/svara-address-api]],
+  [[wiki/bin-day/ekonovus-powerbi-api]].
 - **Second calendar reminder does not survive Google import.** Google Calendar keeps only
   the first `VALARM` from an imported ICS, so the 20:00 alert is dropped and only 17:00
   shows. Fix by creating a dedicated `BinDay` calendar in Google with two default event
@@ -56,6 +72,17 @@ Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
 
 ## Key Facts
 
+- **Both operators have anonymous bulk APIs — no browser, no backend needed.**
+  [[wiki/bin-day/svara-address-api]] (seroval chain, `region` not `district`, 58 477
+  containers in Kauno r.) and [[wiki/bin-day/ekonovus-powerbi-api]] (Power BI `querydata`,
+  gzip, singular `(Pakuotė)` suffix). This overturns the S1 claim that Ekonovus requires a
+  browser — that claim is now marked superseded in [[wiki/bin-day/schedule-scraping]].
+- **Neither operator sends CORS; GitHub Pages does.** Verified in a real browser: a direct
+  `fetch` to Švara is blocked, a fetch to a Pages-hosted JSON is allowed. So static JSON
+  published to the repo is the whole delivery mechanism.
+- **The two catalogues cannot be derived from each other.** Švara's Kauno r. data holds no
+  packaging or glass at all; Ekonovus writes the same address differently
+  (`Juragių k. Žalgirio g. 8A` vs Švara's full official form).
 - Dates are stored as explicit lists, never `anchor + intervalDays`. Švara's schedule
   genuinely deviates — the window before 2026-08 held Monday pickups and an off-cycle
   Wednesday run on 2026-07-22, independently confirmed on the site. A computing app would
