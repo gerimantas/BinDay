@@ -30,7 +30,7 @@ Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
   itself is correct and needs no change. Alternative if that's unwanted: emit two timed
   events on the evening before instead of one all-day event.
 - **Refresh the schedule — Švara has extended MIXED to 2027-10-12**, six dates beyond what
-  `data/Atlieku_isvezimo_grafikai.md` records. Use the `atlieku-grafikai` skill; the fast
+  `data/Atlieku_isvezimo_grafikai.md` records. Use the `binday` skill; the fast
   path is the unauthenticated PDF endpoint, not the browser. After regenerating, update
   `CONTAINERS` in `index.html` and bump `CACHE` in `sw.js`.
 - Consider a `pwa-single-file` skill once a third PWA exists — this session re-solved
@@ -44,7 +44,8 @@ Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
 
 - Created the app: single-file PWA, neon palette (red/yellow/green per waste type),
   expandable schedule list, ICS export, QR scan sheet, PWA icons.
-- Created the `atlieku-grafikai` skill and hardened it through a 6-agent eval that found
+- Created the schedule-scraping skill (then named `atlieku-grafikai`, since renamed to
+  `binday`) and hardened it through a 6-agent eval that found
   8 real defects, including a silent bug where `firecrawl interact` without `-s` attaches
   to another agent's browser session.
 - Extended the `firecrawl` skill with the general lessons: pinning the scrape id, the

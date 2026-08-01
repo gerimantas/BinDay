@@ -1,0 +1,52 @@
+{
+  "skill_name": "binday",
+  "evals": [
+    {
+      "id": 0,
+      "name": "full-refresh",
+      "prompt": "Mano atliekų grafikų MD failas projekte C:\\Users\\retco\\Projects\\BinDay pasenęs. Atnaujink jį — ištrauk naujausias išvežimo datas iš operatorių svetainių ir perrašyk Atlieku_isvezimo_grafikai.md.",
+      "expected_output": "Refreshed Atlieku_isvezimo_grafikai.md with dates scraped live from both grafikai.svara.lt and the Ekonovus Power BI report, for all three containers, in the canonical structure.",
+      "files": [],
+      "assertions": [
+        "Produced a markdown file (not just prose in the reply)",
+        "Scraped BOTH operators — svara.lt for mixed waste AND the Ekonovus Power BI report for packaging and glass",
+        "Mixed-waste container number is written as 52-MK-036668 (six digits), not the truncated 52-MK-03668",
+        "All three containers (MIXED, PACKAGING, GLASS) are present with dates",
+        "Each container's dates have a single consistent interval (no irregular gaps that would indicate a misread calendar day)",
+        "Every scraped date falls on a Tuesday",
+        "Contains a merged chronological calendar section listing all dates with their waste types",
+        "Contains a JS conversion block with anchor + intervalDays for the mobile app",
+        "States a coverage limit (until / Aprėptis iki) per container rather than extrapolating indefinitely"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "next-pickup-lookup",
+      "prompt": "kada kitas siuksliu isvezimas zalgirio 8A? ir ar reikia stikla isstumti",
+      "expected_output": "Answers from the existing Atlieku_isvezimo_grafikai.md without re-scraping. Names the next MIXED date and the next GLASS date, and mentions the evening-before rule.",
+      "files": [],
+      "assertions": [
+        "Answers from the existing local markdown WITHOUT opening a browser session or scraping any operator website",
+        "Names the next MIXED (mišrios komunalinės) pickup date correctly relative to 2026-07-31, which is 2026-08-04",
+        "Answers the glass question specifically — glass is also collected 2026-08-04, so yes it should be put out",
+        "Mentions the operator rule that containers must be put out the evening before",
+        "Answers in Lithuanian, matching the language the user wrote in"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "add-new-container",
+      "prompt": "Uzsisakiau dar viena konteineri is Ekonovus, inventorinis numeris 52-P-22781. Patikrink jo grafika svetaineje ir prideik prie mano atlieku grafiku failo.",
+      "expected_output": "Scrapes the Ekonovus Power BI report filtered to that inventory number, verifies the address matches the property, and regenerates the markdown including that container.",
+      "files": [],
+      "assertions": [
+        "Scraped the Ekonovus Power BI report directly rather than the WordPress page, which returns only cookie banners",
+        "Filtered the report by the inventory number 52-P-22781 rather than by address",
+        "Retrieved the container's pickup dates with a consistent 21-day interval",
+        "Cross-checked the address the report returned against the user's property instead of trusting the number blindly",
+        "Noticed that 52-P-22781 is already the PACKAGING container in the existing file, rather than silently adding a duplicate entry",
+        "Produced an updated markdown file in the canonical structure"
+      ]
+    }
+  ]
+}
