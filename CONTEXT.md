@@ -32,7 +32,9 @@ Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
 
 ## Next Tasks
 
-- **Multi-address support — research done, nothing built.** Decide scope, then build:
+- **Multi-address support — research complete, both operators solved, nothing built.**
+  The Ekonovus DSR decoder now exists (`scripts/pbi_decode.py` in the skill, verified on
+  60 000 rows) and address filtering works server-side in ~7 s. Decide scope, then build:
   a scheduled Python job enumerates both operators into static JSON, the app gains a
   settings sheet (manual address + optional GPS) and fetches its schedule instead of
   carrying it inline. No backend. Open question before starting: whether to ship
