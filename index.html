@@ -22,26 +22,44 @@
     --bg-active: #27272a;
 
     --text-primary: #fafafa;
-    --text-secondary: #a1a1aa;
-    --text-dim: #52525b;
-    --border-subtle: #27272a;
+    --text-secondary: #b4b4bb;
+    /* Was #52525b, which measured 2.29:1 against the card ground — under half the 4.5:1
+       needed to be readable, and effectively invisible outdoors at the kerb, which is
+       exactly where this app gets used. #9a9aa2 clears 5.3:1 even on the lightest
+       surface here while still reading as secondary. */
+    --text-dim: #9a9aa2;
+    --border-subtle: #3f3f46;
 
     /* One neon colour per waste type — the same hue drives the dot, the chip border
        and its glow, so colour alone identifies the bin at a glance.
        Saturated hues on a near-black ground read as neon; the matching -glow value
        is the same colour at low alpha, used for the halo. */
-    --mixed: #ff2d55;      /* neon red — mišrios komunalinės */
-    --mixed-glow: rgba(255, 45, 85, 0.55);
+    /* Orange rather than red — brighter on this ground than either red tried before
+       (#ff2d55 went muddy, #ff4d6a sat dimmer than the yellow beside it).
+       Deliberately at hue 29°, not the more obvious 35°: mixed and packaging appear
+       side by side on the same row, and 35° left only 19° between them, which is too
+       close to tell apart in sunlight. This keeps a 25° gap at 6.8:1 contrast. */
+    --mixed: #ff7a00;      /* bright orange — mišrios komunalinės */
+    --mixed-glow: rgba(255, 122, 0, 0.55);
     --packaging: #ffe600;  /* neon yellow — pakuotės */
     --packaging-glow: rgba(255, 230, 0, 0.5);
     --glass: #00ff9d;      /* neon green — stiklas */
     --glass-glow: rgba(0, 255, 157, 0.5);
 
+    /* Types that only appear at some addresses. Kept clearly distinct from the three
+       above so a green-waste bin is never mistaken for glass. */
+    --green: #7fdc4a;      /* žaliosios atliekos */
+    --green-glow: rgba(127, 220, 74, 0.45);
+    --paper: #4db8ff;      /* popierius */
+    --paper-glow: rgba(77, 184, 255, 0.45);
+    --other: #d4d4d8;      /* unclassified */
+    --other-glow: rgba(212, 212, 216, 0.35);
+
     /* Urgency can no longer be signalled by red — red is a bin colour now. The
        "tonight" state is carried by a pulsing white-hot ring instead, which reads
        as urgent regardless of which bins happen to be due. */
     --accent-soon: #ffffff;
-    --header-h: 76px;
+    --header-h: 92px;   /* card height plus its 8px top inset and a gap below */
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -57,36 +75,52 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* A card like the rest, not a bar welded to the top edge. It stays fixed so the
+     address is always visible, but sits inset with rounded corners and its own lighter
+     ground so it reads as part of the same family as the hero and the list rows. */
   header {
-    background: rgba(24, 24, 27, 0.92);
-    backdrop-filter: blur(12px);
     position: fixed;
-    top: 0; left: 0; right: 0;
-    padding: 14px 16px;
+    top: 8px; left: 12px; right: 12px;
     z-index: 10;
-    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(39, 39, 42, 0.94);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 12px 15px;
   }
   header h1 {
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 700;
-    color: var(--text-primary);
-    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
+  /* The address is what the user checks to know whose schedule this is, so it leads —
+     the app's own name is the smaller line above it. */
   header .addr {
-    font-size: 12px;
-    color: var(--text-dim);
-    margin-top: 3px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2px;
+    line-height: 1.3;
+    padding-right: 46px;   /* clear of the menu button */
   }
 
   /* ---- Hero: the answer to "do I put the bin out tonight?" ---- */
+  /* A lit edge marks this card as the one that answers the question. The first attempt
+     used 7%-opacity white, which measured as a glow but was invisible on a screen —
+     against a near-black page the halo has to be strong enough to actually lift off it.
+     Still calmer than the "tonight" state below, which pulses and goes fully white. */
   .hero {
     background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
+    border: 1px solid rgba(255, 255, 255, 0.34);
     border-radius: 16px;
     padding: 22px 20px;
     margin-bottom: 14px;
     text-align: center;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12),
+                0 0 20px rgba(255, 255, 255, 0.30),
+                0 0 52px rgba(255, 255, 255, 0.16);
   }
   .hero.tonight {
     border-color: var(--accent-soon);
@@ -124,36 +158,58 @@
     flex-wrap: wrap;
     gap: 8px;
     justify-content: center;
-    margin-top: 16px;
+    margin-top: 18px;
   }
 
+  /* Identical to a list row's mark, so the same bin looks the same everywhere on the
+     page — outlined label, no dot.
+
+     All chips share one width and centre their text. Ragged widths (Pakuotės 82px vs
+     Stiklas 63px) made a row of them look misaligned, and a column of rows worse. The
+     short names take extra letter-spacing so they fill the box rather than floating in
+     it — see .chip.short / .mark.short, which the renderer adds. */
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    background: var(--bg-active);
-    border: 1px solid transparent;
-    border-radius: 999px;
-    padding: 7px 14px 7px 11px;
-    font-size: 14px;
+    justify-content: center;
+    min-width: 92px;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    padding: 4px 9px;
+    font-size: 15px;
     font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
     color: var(--text-primary);
   }
-  /* Tint the chip itself, not just the dot — at arm's length the dot is too small
-     to carry the identification on its own. */
-  .chip.MIXED     { border-color: var(--mixed);     color: var(--mixed); }
-  .chip.PACKAGING { border-color: var(--packaging); color: var(--packaging); }
-  .chip.GLASS     { border-color: var(--glass);     color: var(--glass); }
+  /* Tracking scaled to how far each name falls short of the widest one, so all three
+     reach roughly the same optical width instead of one word floating in its box.
+     `letter-spacing` adds a trailing space after the last glyph, which pushes the text
+     off-centre; the matching negative margin cancels it. */
+  .chip.t1, .mark.t1 { letter-spacing: 0.055em; margin-right: -0.055em; }
+  .chip.t2, .mark.t2 { letter-spacing: 0.11em;  margin-right: -0.11em;  }
+
+  .chip.MIXED     { color: var(--mixed); }
+  .chip.PACKAGING { color: var(--packaging); }
+  .chip.GLASS     { color: var(--glass); }
+  .chip.GREEN     { color: var(--green); }
+  .chip.PAPER     { color: var(--paper); }
+  .chip.OTHER     { color: var(--other); }
 
   .dot {
     width: 10px; height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
   }
-  /* The halo is what makes these read as neon rather than as flat colour swatches. */
+  /* The halo is what makes these read as neon rather than as flat colour swatches.
+     Every type needs an entry: a missing one leaves the dot transparent while its
+     label is coloured, which reads as a rendering fault. */
   .dot.MIXED     { background: var(--mixed);     box-shadow: 0 0 8px var(--mixed-glow); }
   .dot.PACKAGING { background: var(--packaging); box-shadow: 0 0 8px var(--packaging-glow); }
   .dot.GLASS     { background: var(--glass);     box-shadow: 0 0 8px var(--glass-glow); }
+  .dot.GREEN     { background: var(--green);     box-shadow: 0 0 8px var(--green-glow); }
+  .dot.PAPER     { background: var(--paper);     box-shadow: 0 0 8px var(--paper-glow); }
+  .dot.OTHER     { background: var(--other);     box-shadow: 0 0 8px var(--other-glow); }
 
   /* ---- Upcoming list ---- */
   h2 {
@@ -165,9 +221,13 @@
     font-weight: 600;
   }
 
+  /* Date on the left, bins on the right. Two columns now that "po N sav." has moved
+     under the date, where it belongs — both are facts about *when*, while the right
+     column answers *which bin*. */
   .row {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
@@ -175,42 +235,60 @@
     padding: 13px 15px;
     margin-bottom: 8px;
   }
-  .row .left { min-width: 84px; flex-shrink: 0; }
+  .row .left { min-width: 0; }
   .row .d {
     font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
   }
+  /* Weekday and countdown share this line. No uppercase: it applied to the weekday
+     abbreviation but would shout "PO 2 SAV." beside it. */
   .row .wd {
     font-size: 12px;
     color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
+    margin-top: 2px;
   }
-  /* Keep list rows a uniform height: three chips on one line would wrap and make
-     the row three times taller than its neighbours, so inside the list the chips
-     collapse to bare dots. The hero still shows full labels, which is where the
-     naming actually needs to be legible. */
+  /* One bin per line, each named. A row of bare dots made the reader map colour to
+     meaning from the legend at the foot of the page; naming each one costs a little
+     height and removes that step. Rows are no longer uniform in height, which is
+     correct — a day with three collections IS bigger news than a day with one. */
+  /* The marks are centred as a BLOCK but left-aligned inside it, so every dot sits on
+     one vertical line. Centring each mark individually instead makes the dots step in
+     and out by half the difference in label width. `width: max-content` sizes the block
+     to its longest label; `margin: 0 auto` then centres that block in the row. */
   .row .marks {
     display: flex;
-    gap: 7px;
-    flex: 1;
+    flex-wrap: wrap;
     justify-content: flex-end;
     align-items: center;
+    gap: 6px;
   }
-  /* In rows the dot is the only carrier of identity, so it gets a wider halo than
-     the chip version where the label already does the work. */
-  .row .marks .dot { width: 13px; height: 13px; }
-  .row .marks .dot.MIXED     { box-shadow: 0 0 11px var(--mixed-glow); }
-  .row .marks .dot.PACKAGING { box-shadow: 0 0 11px var(--packaging-glow); }
-  .row .marks .dot.GLASS     { box-shadow: 0 0 11px var(--glass-glow); }
-  .row .rel {
-    font-size: 12px;
-    color: var(--text-dim);
+  /* An outlined label rather than a dot plus text: the outline carries the colour, so
+     the bin is identifiable at a glance while the row stays one line tall even with
+     three collections on the same day. */
+  .row .marks .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    padding: 4px 9px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
     white-space: nowrap;
-    min-width: 62px;
-    text-align: right;
   }
+  /* Full strength, not the dimmed grey the dots sat in before — these are the answer
+     to "which bin", so they read at the same weight as the date beside them. */
+  .row .marks .mark.MIXED     { color: var(--mixed); }
+  .row .marks .mark.PACKAGING { color: var(--packaging); }
+  .row .marks .mark.GLASS     { color: var(--glass); }
+  .row .marks .mark.GREEN     { color: var(--green); }
+  .row .marks .mark.PAPER     { color: var(--paper); }
+  .row .marks .mark.OTHER     { color: var(--other); }
+
 
   .year-sep {
     font-size: 12px;
@@ -235,21 +313,6 @@
   }
   .more:active { background: var(--bg-surface); }
 
-  .legend {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-top: 14px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  /* Colour the legend text too, so the key itself demonstrates the mapping.
-     Class on the span rather than :has(), which older WebKit lacks. */
-  .legend .MIXED     { color: var(--mixed); }
-  .legend .PACKAGING { color: var(--packaging); }
-  .legend .GLASS     { color: var(--glass); }
 
   /* ---- Actions ---- */
   .actions { margin-top: 26px; }
@@ -287,16 +350,255 @@
   @media (min-width: 560px) {
     body { max-width: 520px; margin: 0 auto; }
   }
+
+  /* ---- menu sheet --------------------------------------------------- */
+  /* No `position` here: the header is already fixed above, which is itself a
+     containing block for the absolutely-positioned button. Re-declaring it as
+     relative silently unfixed the header and let it scroll away. */
+  #gear {
+    position: absolute; top: 8px; right: 8px;
+    width: 42px; height: 42px; padding: 0; margin: 0;
+    background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: center;
+    align-items: center; gap: 5px;
+  }
+  #gear span {
+    display: block; width: 20px; height: 2px; border-radius: 2px;
+    background: var(--text-secondary);
+  }
+  #gear:active span { background: var(--text-primary); }
+
+  /* Two pages inside one sheet: addresses and settings. Tabs rather than a stack so
+     the user can get back without a chain of Back taps. */
+  .tabs {
+    display: flex; gap: 6px;
+    background: var(--bg-surface); border-radius: 11px;
+    padding: 4px; margin-bottom: 22px;
+  }
+  .tabs button {
+    flex: 1; width: auto; margin: 0; padding: 10px 8px;
+    font-size: 13px; font-weight: 600; border: none; border-radius: 8px;
+    background: none; color: var(--text-dim);
+  }
+  .tabs button.on { background: var(--bg-active); color: var(--text-primary); }
+  .page { display: none; }
+  .page.on { display: block; }
+
+  #sheet {
+    position: fixed; inset: 0; z-index: 20;
+    background: var(--bg-base);
+    overflow-y: auto;
+    display: none;
+  }
+  #sheet.open { display: block; }
+  /* Everything inside shares the main view's column so the sheet does not read as a
+     different app on a wide screen. */
+  #sheet .wrap {
+    padding: 20px 18px calc(28px + env(safe-area-inset-bottom));
+    max-width: 520px; margin: 0 auto;
+  }
+  /* A titlebar with the close control, so "Uždaryti" need not sit at the bottom of a
+     scrolling page where it is easy to lose. */
+  #sheet .bar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 14px 18px;
+    margin: -20px -18px 20px;
+  }
+  #sheet .bar h1 { flex: 1; font-size: 15px; letter-spacing: .04em; margin: 0; }
+  #sheet .bar button {
+    width: auto; margin: 0; padding: 8px 14px; font-size: 13px;
+    border-radius: 9px;
+  }
+  #sheet h2 {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-dim); font-weight: 600; margin: 0 0 4px;
+  }
+  #sheet .hint { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; line-height: 1.5; }
+  #sheet label { display: block; font-size: 12px; color: var(--text-secondary); margin: 14px 0 6px; }
+  #sheet input, #sheet select {
+    width: 100%; box-sizing: border-box;
+    background: var(--bg-surface); color: var(--text-primary);
+    border: 1px solid var(--border-subtle); border-radius: 10px;
+    padding: 13px; font-size: 16px; /* 16px stops iOS zooming the page on focus */
+    font-family: inherit;
+  }
+  /* A native <select>'s dropdown is drawn by the OS, which on Windows renders it at its
+     own scale — far larger than the rest of the page, and `option { font-size }` is only
+     honoured on some platforms. So the picker is built from ordinary elements instead,
+     which the app's own type scale controls everywhere. */
+  .picker { position: relative; }
+  .picker .field {
+    width: 100%; box-sizing: border-box; text-align: left;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-surface); color: var(--text-primary);
+    border: 1px solid var(--border-subtle); border-radius: 10px;
+    padding: 13px; font-size: 15px; font-weight: 400; font-family: inherit;
+    margin: 0; cursor: pointer;
+  }
+  .picker .field .val { flex: 1; }
+  .picker .field .caret { color: var(--text-dim); font-size: 11px; flex: none; }
+  .picker .menu {
+    display: none;
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle); border-radius: 12px;
+    max-height: 300px; overflow-y: auto;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  }
+  .picker.open .menu { display: block; }
+  .picker .menu .opt {
+    padding: 12px 14px; font-size: 15px; color: var(--text-primary);
+    cursor: pointer; border-bottom: 1px solid var(--bg-base);
+  }
+  .picker .menu .opt:last-child { border-bottom: none; }
+  .picker .menu .opt:hover, .picker .menu .opt:active { background: var(--bg-active); }
+  .picker .menu .opt.sel { color: var(--glass); }
+  .picker .menu .opt.dim { color: var(--text-dim); }
+  .picker .menu .grp {
+    padding: 10px 14px 6px; font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text-dim);
+    background: var(--bg-base);
+  }
+  #sheet input:focus, #sheet select:focus { outline: 1px solid var(--text-dim); }
+
+  .suggest { margin-top: 8px; border-radius: 12px; overflow: hidden; }
+  .suggest .hit {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 14px; font-size: 14px; line-height: 1.35;
+    background: var(--bg-surface); border-bottom: 1px solid var(--bg-base);
+    cursor: pointer;
+  }
+  .suggest .hit:active { background: var(--bg-active); }
+  .suggest .hit .dots { display: flex; gap: 4px; flex: none; }
+  .suggest .none { padding: 13px 14px; font-size: 13px; color: var(--text-dim); }
+
+  /* One dot per waste type, in that type's colour — the emoji circles did not match the
+     app's palette and rendered at inconsistent sizes across platforms. */
+  .tdot {
+    width: 9px; height: 9px; border-radius: 50%;
+    display: inline-block; flex: none;
+  }
+
+  .saved { margin: 8px 0 0; }
+  .saved .row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-surface); border-radius: 12px;
+    padding: 13px 14px; margin-bottom: 8px;
+    border: 1px solid transparent;
+  }
+  /* The active address needs to be obvious at a glance — a faint border was not enough
+     to tell which of several saved addresses the schedule belongs to. */
+  .saved .row.active {
+    border-color: var(--text-secondary);
+    background: var(--bg-active);
+  }
+  .saved .row .tick {
+    width: 18px; flex: none; text-align: center;
+    color: var(--text-dim); font-size: 13px;
+  }
+  .saved .row.active .tick { color: var(--glass); }
+  .saved .row .name { flex: 1; font-size: 14px; line-height: 1.4; min-width: 0; }
+  .saved .row .name .meta {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-dim); margin-top: 4px;
+  }
+  /* Container numbers are the thing printed on the bin, so they get a monospace face —
+     they are read digit by digit against a sticker, not skimmed as prose. */
+  .saved .row .name .nums {
+    display: block; margin-top: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px; color: var(--text-dim); word-break: break-all;
+  }
+  .saved .row .del {
+    width: auto; flex: none; margin: 0; padding: 7px 11px; font-size: 12px;
+    background: none; border: 1px solid var(--border-subtle); color: var(--text-dim);
+    border-radius: 8px;
+  }
+  .notice {
+    background: var(--bg-surface); border-left: 3px solid var(--accent-soon);
+    border-radius: 8px; padding: 12px 13px; font-size: 13px; line-height: 1.5;
+    color: var(--text-secondary); margin-top: 14px;
+  }
+  .busy { font-size: 13px; color: var(--text-dim); margin-top: 12px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>BinDay</h1>
-  <div class="addr">Žalgirio g. 8A, Juragiai</div>
+  <div class="addr" id="addr">Žalgirio g. 8A, Juragiai</div>
+  <button id="gear" aria-label="Meniu" title="Meniu">
+    <span></span><span></span><span></span>
+  </button>
 </header>
 
 <main id="app" aria-live="polite"></main>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-label="Meniu">
+ <div class="wrap">
+  <div class="bar">
+    <h1>MENIU</h1>
+    <button id="close">Uždaryti</button>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button id="tabAddr" class="on" role="tab" aria-selected="true">Adresai</button>
+    <button id="tabSet" role="tab" aria-selected="false">Nustatymai</button>
+  </div>
+
+  <!-- Page: addresses -->
+  <div class="page on" id="pageAddr" role="tabpanel">
+    <h2>Išsaugoti adresai</h2>
+    <div class="hint">Palieskite adresą, kad rodytumėte jo grafiką.</div>
+    <div class="saved" id="saved"></div>
+
+    <button id="addToggle" style="margin-top:16px">+ Pridėti adresą</button>
+
+    <div id="addForm" hidden>
+      <label for="areaBtn">Savivaldybė</label>
+      <div class="picker" id="areaPicker">
+        <button type="button" class="field" id="areaBtn" aria-haspopup="listbox"
+                aria-expanded="false">
+          <span class="val" id="areaVal">Įkeliama…</span>
+          <span class="caret">▼</span>
+        </button>
+        <div class="menu" id="areaMenu" role="listbox"></div>
+      </div>
+
+      <label for="q">Gatvė ir namo numeris</label>
+      <input id="q" type="text" inputmode="text" autocomplete="off"
+             placeholder="pvz. Žalgirio g. 8A" aria-describedby="qhint">
+      <div class="hint" id="qhint" style="margin:6px 0 0">Įveskite bent 3 simbolius.</div>
+      <div class="suggest" id="suggest"></div>
+
+      <button id="locate" style="margin-top:18px">📍 Rasti pagal vietą
+        <span class="sub">Pasiūlys artimiausius adresus — pasirinksite patys</span></button>
+      <div class="busy" id="busy" hidden></div>
+    </div>
+  </div>
+
+  <!-- Page: settings -->
+  <div class="page" id="pageSet" role="tabpanel">
+    <h2>Priminimai</h2>
+    <div class="hint">Kalendoriaus eksportas sukuria įvykį kiekvienam išvežimui su
+      priminimu iš vakaro.</div>
+    <button id="icsAll">Eksportuoti į kalendorių</button>
+
+    <h2 style="margin-top:28px">Duomenys</h2>
+    <div class="hint" id="dataInfo">Įkeliama…</div>
+
+    <h2 style="margin-top:28px">Apie</h2>
+    <div class="hint">BinDay — atliekų išvežimo grafikas.
+      Duomenys: UAB Kauno švara ir Ekonovus. Grafikai atnaujinami periodiškai;
+      jei data praėjo, reikia atnaujinti duomenis.</div>
+  </div>
+
+  <footer style="margin-top:26px">Duomenys: UAB Kauno švara · Ekonovus</footer>
+ </div>
+</div>
 
 <script>
 /* ------------------------------------------------------------------
@@ -430,14 +732,24 @@ function render(now) {
   else if (days === 1) { headline = 'Rytoj'; when = 'Išstumk šįvakar'; }
   else { headline = `Po ${days} d.`; when = 'Kitas išvežimas'; }
 
+  /* Chips share a fixed width, so a short name would sit in a pool of empty box.
+     Tracking is widened in two steps according to how many characters the name is
+     short of the longest one in play — computed from the actual labels rather than
+     hardcoded, since a new waste type changes which name is longest. */
+  const widest = Math.max(...CONTAINERS.map(c => c.label.length), 1);
+  const track = label => {
+    const gap = widest - label.length;
+    return gap >= 3 ? ' t2' : gap >= 1 ? ' t1' : '';
+  };
+
   const chips = types => types
-    .map(c => `<span class="chip ${c.type}"><span class="dot ${c.type}"></span>${c.label}</span>`)
+    .map(c => `<span class="chip ${c.type}${track(c.label)}">${c.label}</span>`)
     .join('');
 
-  // In list rows only the coloured dot is shown, so it needs a key. Title text
-  // covers desktop hover; the legend below covers touch.
+  // Outlined labels in the bin's own colour. The name carries the meaning, so the dot
+  // is redundant beside it — the border supplies the colour cue on its own.
   const dots = types => types
-    .map(c => `<span class="dot ${c.type}" title="${c.label}"></span>`)
+    .map(c => `<span class="mark ${c.type}${track(c.label)}">${c.label}</span>`)
     .join('');
 
   let html = `
@@ -471,10 +783,9 @@ function render(now) {
         <div class="row">
           <div class="left">
             <div class="d">${prettyDate(e.iso)}</div>
-            <div class="wd">${WD_SHORT[d.getDay()]}</div>
+            <div class="wd">${WD_SHORT[d.getDay()]}${rel ? ` · ${rel}` : ''}</div>
           </div>
           <div class="marks">${dots(e.types)}</div>
-          <div class="rel">${rel || ''}</div>
         </div>`;
     }
 
@@ -483,10 +794,6 @@ function render(now) {
     } else if (expanded) {
       html += '<button id="less" class="more">Rodyti mažiau</button>';
     }
-
-    html += '<div class="legend">' + CONTAINERS
-      .map(c => `<span class="${c.type}"><span class="dot ${c.type}"></span>${c.label}</span>`)
-      .join('') + '</div>';
   }
 
   html += `
@@ -650,6 +957,476 @@ function downloadICS(entries) {
 /* A single `now` per render keeps every relative label consistent — no chance
    of the hero saying "tomorrow" while a row says "today" after a midnight tick. */
 function refresh() { render(new Date()); }
+
+/* ------------------------------------------------------------------
+   Settings — saved addresses, catalogue lookup, geolocation
+
+   The catalogue is fetched from data/catalog/ as static JSON. Only
+   municipalities served by BOTH operators ship data; a single-operator
+   area would show packaging without mixed waste (or the reverse), and a
+   schedule that silently omits a bin is worse than none. Those areas are
+   listed as `pending` and the app says so.
+------------------------------------------------------------------ */
+const STORE = 'binday.addresses';
+const CATALOG = 'data/catalog/';
+const TYPE_META = {
+  MIXED:     { label: 'Mišrios',  emoji: '🔴', color: 'red' },
+  PACKAGING: { label: 'Pakuotės', emoji: '🟡', color: 'gold' },
+  GLASS:     { label: 'Stiklas',  emoji: '🟢', color: 'springgreen' },
+  GREEN:     { label: 'Žaliosios', emoji: '🟤', color: 'olivedrab' },
+  PAPER:     { label: 'Popierius', emoji: '🔵', color: 'deepskyblue' },
+  OTHER:     { label: 'Kita',     emoji: '⚪', color: 'gainsboro' }
+};
+
+let areasIndex = null;              // areas.json
+const areaCache = new Map();        // file -> entries[]
+
+function loadSaved() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (raw && Array.isArray(raw.list)) return raw;
+  } catch (e) { /* corrupt or unavailable storage — fall through to the default */ }
+  return { active: 0, list: [] };
+}
+function persist(state) {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); }
+  catch (e) { /* private mode: the app still works for this session */ }
+}
+let saved = loadSaved();
+
+async function getIndex() {
+  if (!areasIndex) {
+    const r = await fetch(CATALOG + 'areas.json');
+    if (!r.ok) throw new Error('index ' + r.status);
+    areasIndex = await r.json();
+  }
+  return areasIndex;
+}
+
+async function getArea(files) {
+  const out = [];
+  for (const f of files) {
+    if (!areaCache.has(f.file)) {
+      const r = await fetch(CATALOG + f.file);
+      if (!r.ok) throw new Error(f.file + ' ' + r.status);
+      areaCache.set(f.file, (await r.json()).entries);
+    }
+    for (const e of areaCache.get(f.file)) {
+      out.push({ address: e[0], id: e[1], type: e[2], hashedId: e[3] || null,
+                 operator: f.operator });
+    }
+  }
+  return out;
+}
+
+/* Švara and Ekonovus write the same place differently — "Žalgirio g. 8A,
+   Juragių k., …" vs "Juragių k. Žalgirio g. 8A" — so matching is done on a
+   normalised bag of words rather than on the string as written. */
+function normalise(s) {
+  return (s || '').toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(g|gatvė|k|kaimas|mstl|mst|m|vs|sen|sav|r|al|tak|pr)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+function tokens(s) { return normalise(s).split(' ').filter(Boolean); }
+
+/* The two operators describe one property differently — Švara writes
+   "Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav." and
+   Ekonovus "Juragių k. Žalgirio g. 8A". Grouping on the raw string would
+   offer the same house twice, each with half its bins, and whichever the
+   user picked would quietly omit the others. Group on the sorted word bag
+   instead so both operators' containers land on one result. */
+function addressKey(s) {
+  /* Švara appends the seniūnija and savivaldybė ("…, Garliavos apylinkių sen.
+     Kauno r. sav."), Ekonovus does not. Comparing whole word bags therefore
+     never matches. The house number plus the two most specific name words —
+     street and locality — identify the property, and both operators carry
+     those. */
+  const t = tokens(s);
+  const house = t.filter(w => /\d/.test(w));
+  const words = t.filter(w => !/\d/.test(w));
+  const key = words.slice(0, 2).sort().concat(house.sort());
+  return key.join(' ');
+}
+
+function searchAddresses(entries, query, limit = 12) {
+  const q = tokens(query);
+  if (!q.length) return [];
+  const groups = new Map();
+  for (const e of entries) {
+    const hay = normalise(e.address);
+    if (!q.every(t => hay.includes(t))) continue;
+    const key = addressKey(e.address);
+    if (!groups.has(key)) groups.set(key, { labels: [], containers: [] });
+    const g = groups.get(key);
+    g.labels.push(e.address);
+    g.containers.push(e);
+    if (groups.size > limit * 4) break;
+  }
+  return [...groups.values()]
+    // Prefer the operator's fullest wording as the label the user sees.
+    .map(g => ({
+      address: g.labels.slice().sort((a, b) => b.length - a.length)[0],
+      containers: g.containers
+    }))
+    /* Rank an exact house-number match first: a search for "8A" otherwise puts
+       "28A" above it, because "8a" is a substring of "28a". */
+    .sort((a, b) => exactness(b, q) - exactness(a, q) || a.address.length - b.address.length)
+    .slice(0, limit);
+}
+
+function exactness(hit, queryTokens) {
+  const words = tokens(hit.address);
+  return queryTokens.filter(t => words.includes(t)).length;
+}
+
+/* Operators spell one property at very different lengths — Švara's
+   "Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav." wraps to three
+   lines on a phone and repeats the municipality the user just chose. Keep the street,
+   house and locality; drop the administrative tail. */
+function shortAddress(s) {
+  const parts = String(s).split(',').map(x => x.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    const keep = parts.filter(p => !/\b(sen|sav)\.?$/i.test(p));
+    return (keep.length ? keep : parts).slice(0, 2).join(', ');
+  }
+  return s;
+}
+
+/* Distinct waste types, in a stable order, as coloured dots. */
+const TYPE_ORDER = ['MIXED', 'PACKAGING', 'GLASS', 'GREEN', 'PAPER', 'RECYCLABLE', 'OTHER'];
+function distinctTypes(containers) {
+  const seen = new Set(containers.map(c => c.type));
+  return TYPE_ORDER.filter(t => seen.has(t))
+    .concat([...seen].filter(t => !TYPE_ORDER.includes(t)));
+}
+function typeDots(containers) {
+  return distinctTypes(containers).map(t => {
+    const m = TYPE_META[t] || TYPE_META.OTHER;
+    const dot = document.createElement('span');
+    dot.className = 'tdot';
+    dot.style.background = m.color;
+    dot.title = m.label;
+    return dot;
+  });
+}
+
+/* ---- settings UI ---- */
+const $ = id => document.getElementById(id);
+const sheet = $('sheet');
+
+function renderSaved() {
+  const box = $('saved');
+  if (!saved.list.length) {
+    box.innerHTML = '<div class="hint" style="margin:0">Dar nieko neišsaugota. '
+      + 'Rodomas numatytasis adresas.</div>';
+    return;
+  }
+  box.innerHTML = '';
+  saved.list.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'row' + (i === saved.active ? ' active' : '');
+
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.textContent = i === saved.active ? '●' : '○';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    /* Show the short form — the operator's full string repeats the seniūnija and
+       savivaldybė the user just picked, and wraps to three lines on a phone. */
+    name.appendChild(document.createTextNode(shortAddress(a.address)));
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    for (const dot of typeDots(a.containers)) meta.appendChild(dot);
+    const n = document.createElement('span');
+    n.textContent = distinctTypes(a.containers)
+      .map(t => (TYPE_META[t] || TYPE_META.OTHER).label).join(' · ');
+    meta.appendChild(n);
+    name.appendChild(meta);
+
+    /* The container numbers are what the user checks against the sticker on the bin,
+       so show them rather than only a count. */
+    const ids = a.containers.map(c => c.id).filter(Boolean);
+    if (ids.length) {
+      const nums = document.createElement('span');
+      nums.className = 'nums';
+      nums.textContent = ids.join(' · ');
+      name.appendChild(nums);
+    }
+    name.addEventListener('click', () => {
+      saved.active = i; persist(saved); renderSaved(); applyActive();
+    });
+    row.appendChild(tick);
+    const del = document.createElement('button');
+    del.className = 'del'; del.textContent = 'Šalinti';
+    del.addEventListener('click', ev => {
+      ev.stopPropagation();
+      saved.list.splice(i, 1);
+      if (saved.active >= saved.list.length) saved.active = Math.max(0, saved.list.length - 1);
+      persist(saved); renderSaved(); applyActive();
+    });
+    row.append(name, del);
+    box.appendChild(row);
+  });
+}
+
+let areaValue = '';   // '' none, 'Name' shipped, '!Name' pending
+
+function setArea(value, label) {
+  areaValue = value;
+  $('areaVal').textContent = label;
+  $('areaPicker').classList.remove('open');
+  $('areaBtn').setAttribute('aria-expanded', 'false');
+  $('busy').hidden = true;
+  doSearch();
+}
+
+async function fillAreas() {
+  const menu = $('areaMenu');
+  let idx;
+  try { idx = await getIndex(); }
+  catch (e) { $('areaVal').textContent = 'Nepavyko įkelti sąrašo'; return; }
+  menu.innerHTML = '';
+
+  const addOption = (value, label, dim) => {
+    const d = document.createElement('div');
+    d.className = 'opt' + (dim ? ' dim' : '');
+    d.setAttribute('role', 'option');
+    d.textContent = label;
+    d.addEventListener('click', () => setArea(value, label));
+    menu.appendChild(d);
+    return d;
+  };
+
+  for (const a of idx.shipped) addOption(a.municipality, a.municipality, false);
+
+  if (idx.pending.length) {
+    const g = document.createElement('div');
+    g.className = 'grp';
+    g.textContent = 'Ruošiama — duomenų dar nėra';
+    menu.appendChild(g);
+    for (const a of idx.pending) {
+      addOption('!' + a.municipality, a.municipality, true);
+    }
+  }
+
+  const first = idx.shipped[0];
+  if (first) {
+    areaValue = first.municipality;
+    $('areaVal').textContent = first.municipality;
+  }
+}
+
+function pendingNotice(name) {
+  const box = $('suggest');
+  box.innerHTML = '';
+  const d = document.createElement('div');
+  d.className = 'notice';
+  d.textContent = name + ' — duomenys ruošiami. Šioje savivaldybėje veikia tik vienas '
+    + 'vežėjas, tad grafikas būtų nepilnas: trūktų dalies konteinerių. Kol to nepataisysime, '
+    + 'geriau nerodyti nieko, nei rodyti pusę.';
+  box.appendChild(d);
+}
+
+let searchTimer = null;
+async function doSearch() {
+  const area = areaValue;
+  const q = $('q').value.trim();
+  const box = $('suggest');
+  if (area.startsWith('!')) { pendingNotice(area.slice(1)); return; }
+  if (q.length < 3) { box.innerHTML = ''; return; }
+
+  const idx = await getIndex();
+  const entry = idx.shipped.find(a => a.municipality === area);
+  if (!entry) { box.innerHTML = ''; return; }
+
+  box.innerHTML = '<div class="none">Ieškoma…</div>';
+  let hits;
+  try {
+    hits = searchAddresses(await getArea(entry.files), q);
+  } catch (e) {
+    box.innerHTML = '<div class="none">Nepavyko įkelti duomenų.</div>';
+    return;
+  }
+  box.innerHTML = '';
+  if (!hits.length) {
+    box.innerHTML = '<div class="none">Nieko nerasta. Pabandykite tik gatvės pavadinimą.</div>';
+    return;
+  }
+  for (const h of hits) {
+    const d = document.createElement('div');
+    d.className = 'hit';
+    const label = document.createElement('span');
+    label.style.flex = '1';
+    label.textContent = shortAddress(h.address);
+    const dots = document.createElement('span');
+    dots.className = 'dots';
+    /* One dot per waste TYPE, not per container — a property with two mixed-waste bins
+       showed two identical red dots, which reads as a data error rather than as
+       "collected twice". */
+    for (const dot of typeDots(h.containers)) dots.appendChild(dot);
+    d.append(label, dots);
+    d.addEventListener('click', () => addAddress(h));
+    box.appendChild(d);
+  }
+}
+
+function addAddress(hit) {
+  if (saved.list.some(a => a.address === hit.address)) {
+    saved.active = saved.list.findIndex(a => a.address === hit.address);
+  } else {
+    saved.list.push({
+      address: hit.address,
+      containers: hit.containers.map(c => ({ id: c.id, type: c.type,
+                                             operator: c.operator, hashedId: c.hashedId }))
+    });
+    saved.active = saved.list.length - 1;
+  }
+  persist(saved);
+  $('q').value = '';
+  $('suggest').innerHTML = '';
+  $('busy').hidden = true;
+  // Collapse the form again so the list of saved addresses is what the user sees next.
+  $('addForm').hidden = true;
+  $('addToggle').textContent = '+ Pridėti adresą';
+  renderSaved();
+  applyActive();
+}
+
+/* Geolocation is a shortcut, never an answer. Reverse geocoding returns the
+   nominative ("Jonučiai") while the operators store the genitive
+   ("Jonučių k."), so an exact match finds nothing — we search on the street
+   name and let the user confirm which address is theirs. */
+async function locate() {
+  const busy = $('busy');
+  busy.hidden = false;
+  busy.textContent = 'Nustatoma vieta…';
+  if (!navigator.geolocation) { busy.textContent = 'Vietos nustatymas nepalaikomas.'; return; }
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    busy.textContent = 'Ieškoma adreso…';
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json'
+        + '&addressdetails=1&accept-language=lt&lat=' + lat + '&lon=' + lon);
+      const g = await r.json();
+      const a = g.address || {};
+      const street = a.road || '';
+      const place = a.village || a.town || a.city || a.hamlet || '';
+      if (!street && !place) { busy.textContent = 'Adreso nustatyti nepavyko.'; return; }
+      // Search on the street plus the house number when we have one; the locality
+      // is only a hint because its grammatical case will not match.
+      $('q').value = [street, a.house_number].filter(Boolean).join(' ');
+      busy.textContent = 'Rasta: ' + [place, street, a.house_number].filter(Boolean).join(' ')
+        + ' — pasirinkite savo adresą iš sąrašo.';
+      await doSearch();
+    } catch (e) {
+      busy.textContent = 'Nepavyko pasiekti vietos paslaugos.';
+    }
+  }, err => {
+    busy.textContent = err.code === err.PERMISSION_DENIED
+      ? 'Vietos prieiga neleista.' : 'Vietos nustatyti nepavyko.';
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+}
+
+/* Swap the rendered schedule to the active saved address.
+
+   The catalogue holds containers, not dates — fetching dates in bulk is far
+   too slow at the operators' end, so a saved address carries its schedule
+   alongside it once fetched. Until that per-address schedule feed exists,
+   an address selected here shows its containers and states plainly that the
+   dates are still coming, rather than showing the built-in address's dates
+   under someone else's street name. */
+function applyActive() {
+  const a = saved.list[saved.active];
+  if (!a) {
+    document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
+    refresh();
+    return;
+  }
+  document.getElementById('addr').textContent = shortAddress(a.address);
+  if (a.schedule && a.schedule.length) {
+    CONTAINERS.length = 0;
+    CONTAINERS.push(...a.schedule);
+    refresh();
+    return;
+  }
+  const types = a.containers
+    .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
+    .map(m => m.emoji + ' ' + m.label).join(' · ');
+  document.getElementById('app').innerHTML =
+    '<div class="notice">Rasti konteineriai: ' + types
+    + '<br><br>Išvežimo datos šiam adresui dar neįkeltos — ruošiame. '
+    + 'Konteinerių numeriai: '
+    + a.containers.map(c => c.id).join(', ') + '</div>';
+}
+
+function showPage(which) {
+  const addr = which === 'addr';
+  $('pageAddr').classList.toggle('on', addr);
+  $('pageSet').classList.toggle('on', !addr);
+  $('tabAddr').classList.toggle('on', addr);
+  $('tabSet').classList.toggle('on', !addr);
+  $('tabAddr').setAttribute('aria-selected', addr ? 'true' : 'false');
+  $('tabSet').setAttribute('aria-selected', addr ? 'false' : 'true');
+  if (!addr) fillDataInfo();
+}
+$('tabAddr').addEventListener('click', () => showPage('addr'));
+$('tabSet').addEventListener('click', () => showPage('set'));
+
+/* The add form starts collapsed: with several addresses saved, an always-open form
+   pushed the list the user came here to use off the screen. */
+$('addToggle').addEventListener('click', async () => {
+  const form = $('addForm');
+  const opening = form.hidden;
+  form.hidden = !opening;
+  $('addToggle').textContent = opening ? '× Atšaukti' : '+ Pridėti adresą';
+  if (opening && !$('areaMenu').children.length) await fillAreas();
+  if (opening) $('q').focus();
+});
+
+async function fillDataInfo() {
+  const el = $('dataInfo');
+  try {
+    const idx = await getIndex();
+    const names = idx.shipped.map(a => a.municipality).join(', ');
+    el.textContent = `Duomenys surinkti ${idx.generated}. Veikia: ${names}. `
+      + `Kitos savivaldybės ruošiamos — jose kol kas veža tik vienas vežėjas, `
+      + `tad grafikas būtų nepilnas.`;
+  } catch (e) {
+    el.textContent = 'Nepavyko įkelti informacijos.';
+  }
+}
+
+$('icsAll').addEventListener('click', () => {
+  const entries = buildCalendar().filter(e => e.iso >= isoLocal(new Date()));
+  if (entries.length) downloadICS(entries);
+});
+
+$('gear').addEventListener('click', async () => {
+  sheet.classList.add('open');
+  showPage('addr');
+  renderSaved();
+});
+$('close').addEventListener('click', () => sheet.classList.remove('open'));
+$('locate').addEventListener('click', locate);
+$('areaBtn').addEventListener('click', () => {
+  const p = $('areaPicker');
+  const open = p.classList.toggle('open');
+  $('areaBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+// Close the picker when tapping anywhere else, the way a native select behaves.
+document.addEventListener('click', ev => {
+  const p = $('areaPicker');
+  if (p && !p.contains(ev.target)) {
+    p.classList.remove('open');
+    $('areaBtn').setAttribute('aria-expanded', 'false');
+  }
+});
+$('q').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 200);
+});
 
 refresh();
 setInterval(refresh, 60000);

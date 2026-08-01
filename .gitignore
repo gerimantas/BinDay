@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+*.pyc
+
+# The generated address catalogue — ~19 MB, and regenerating it takes about ten minutes
+# with the tools in tools/. Left out of git deliberately while the pipeline is still
+# unreliable: committing it would freeze a state that build_index.py can destroy on the
+# next partial run. Once the pipeline is deterministic, decide between committing it and
+# generating it in CI (see CONTEXT.md, first Next Task).
+data/catalog/
