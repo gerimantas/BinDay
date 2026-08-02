@@ -6,11 +6,16 @@ in the embed URL on ekonovus.lt and is the only credential. See the `binday` ski
 the traps this file already works around (gzip, delta-encoded rows, singular type
 suffixes, windowed paging).
 
-    python tools/fetch_ekonovus.py --out data/catalog
+    python tools/fetch_ekonovus.py            # writes data/raw/ekonovus/
 
-Writes data/catalog/ekonovus-<code>.json for every municipality code seen, plus an
+Writes data/raw/ekonovus/ekonovus-<code>.json for every municipality code seen, plus an
 index.json summarising them. Roughly 410 000 containers across 22 municipalities in
 about 3-4 minutes.
+
+Writes whole files and never deletes: a municipality that fails leaves its previous file
+intact and the build uses that. Every write is atomic (temp file, fsync, rename), so an
+interrupted run cannot leave half a file behind. Each file gets a .meta.json sidecar
+recording when it was fetched, from what, and its sha256.
 """
 
 import argparse
@@ -22,6 +27,9 @@ import sys
 import time
 import urllib.request
 from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from atomic import write_json, RAW  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pbi_decode import decode  # noqa: E402
@@ -205,7 +213,9 @@ def name_from_addresses(entries):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="data/catalog")
+    # Fetch output goes to raw/, which this script writes and never deletes.
+    # Anything derived from it belongs in dist/, owned by the build step.
+    ap.add_argument("--out", default=os.path.join(RAW, "ekonovus"))
     ap.add_argument("--template", default="tools/pbi_template.json",
                     help="a captured querydata request body (see the binday skill)")
     args = ap.parse_args()
@@ -255,25 +265,37 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     index = []
+    failed = []
     for code, entries in sorted(by_code.items(), key=lambda kv: -len(kv[1])):
         known = MUNICIPALITIES.get(code)
         name = (known[0] if known else None) or name_from_addresses(entries) \
             or f"(kodas {code})"
-        path = os.path.join(args.out, f"ekonovus-{code}.json")
-        payload = {"operator": "Ekonovus", "code": code, "municipality": name,
-                   "count": len(entries), "entries": entries}
-        with io.open(path, "w", encoding="utf-8") as fh:
-            json.dump(payload, fh, ensure_ascii=False, separators=(",", ":"))
-        size = os.path.getsize(path)
-        index.append({"operator": "Ekonovus", "code": code, "municipality": name,
-                      "count": len(entries), "file": os.path.basename(path),
-                      "bytes": size})
-        print(f"  {code} {name:<24} {len(entries):>7} -> {size/1e6:.2f} MB")
+        # One municipality failing must not abandon the rest, and must never remove
+        # the previous file: a missing new file is not a deleted old one.
+        try:
+            path = os.path.join(args.out, f"ekonovus-{code}.json")
+            payload = {"operator": "Ekonovus", "code": code, "municipality": name,
+                       "count": len(entries), "entries": entries}
+            meta = write_json(path, payload, source="ekonovus/powerbi",
+                              request={"code": code, "municipality": name})
+            index.append({"operator": "Ekonovus", "code": code, "municipality": name,
+                          "count": len(entries), "file": os.path.basename(path),
+                          "bytes": meta["bytes"]})
+            print(f"  {code} {name:<24} {len(entries):>7} -> {meta['bytes']/1e6:.2f} MB")
+        except OSError as e:
+            failed.append((code, name, str(e)))
+            print(f"  {code} {name:<24} FAILED ({e}) — previous file kept")
 
-    with io.open(os.path.join(args.out, "index.json"), "w", encoding="utf-8") as fh:
-        json.dump({"generated": time.strftime("%Y-%m-%d"), "areas": index}, fh,
-                  ensure_ascii=False, indent=1)
+    write_json(os.path.join(args.out, "index.json"),
+               {"generated": time.strftime("%Y-%m-%d"), "areas": index},
+               source="ekonovus/powerbi")
     print(f"\nwrote {len(index)} municipality files to {args.out}")
+
+    if failed:
+        print(f"\n{len(failed)} municipalities failed:", file=sys.stderr)
+        for code, name, err in failed:
+            print(f"   {code} {name}: {err}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

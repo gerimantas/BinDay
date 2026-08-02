@@ -78,27 +78,24 @@ def main():
     with io.open(os.path.join(CATALOG, "areas.json"), "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=1)
 
-    keep = {f["file"] for e in shipped for f in e["files"]} | {"areas.json"}
     print(f"shipped ({len(shipped)} areas, both operators):")
     for e in shipped:
         print(f"   {e['municipality']:<24} {e['containers']:>7}")
     print(f"pending ({len(pending)} areas, one operator only) — app warns, ships no data")
 
     if prune:
-        # Only ever prune files this run actually saw. Deleting on the strength of a
-        # partial catalogue is how five Švara municipalities were lost: a run made after
-        # rebuilding Ekonovus alone deleted every Švara file that was not in a
-        # both-operator pairing, and the next run could no longer even list them as
-        # pending, so Kauno m. sav. silently vanished from the app's picker.
-        seen = {f["file"] for a in areas.values() for f in a["files"]}
-        removed = 0
-        for path in glob.glob(os.path.join(CATALOG, "*.json")):
-            base = os.path.basename(path)
-            if base in keep or base not in seen:
-                continue
-            os.remove(path)
-            removed += 1
-        print(f"pruned {removed} single-operator files")
+        # Pruning is gone, and the flag is kept only so an old invocation does not
+        # fail. This script reads a directory it does not own, so it must never
+        # delete from it — that asymmetry is the whole point of the raw/ + dist/
+        # split (see tools/atomic.py).
+        #
+        # What the guarded version still got wrong: "only prune what this run saw"
+        # narrows the blast radius but does not remove it. A run made after
+        # rebuilding Ekonovus alone still deleted Švara files it had not created,
+        # and Kauno m. sav. vanished from the picker twice — the second time so
+        # completely that the next run could not list it even as pending.
+        print("prune: disabled — this script does not own data/catalog "
+              "and never deletes from it (--keep-all is now the only behaviour)")
     size = sum(os.path.getsize(p) for p in glob.glob(os.path.join(CATALOG, "*.json")))
     print(f"catalog now {size/1e6:.1f} MB")
 

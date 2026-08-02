@@ -2,9 +2,16 @@ node_modules/
 __pycache__/
 *.pyc
 
-# The generated address catalogue — ~19 MB, and regenerating it takes about ten minutes
-# with the tools in tools/. Left out of git deliberately while the pipeline is still
-# unreliable: committing it would freeze a state that build_index.py can destroy on the
-# next partial run. Once the pipeline is deterministic, decide between committing it and
-# generating it in CI (see CONTEXT.md, first Next Task).
+# The old single-directory catalogue, superseded by data/raw/ + dist/. Kept ignored
+# until the new pipeline replaces every consumer of it; delete the directory then.
 data/catalog/
+
+# Fetch output. Stays out of git: it is large, it is restored by re-fetching from the
+# operators, and nothing derives from git history here. dist/ IS committed — it is
+# regenerated from raw/ in seconds, gated by the checker, and it is the only way GitHub
+# Pages can serve it.
+data/raw/
+
+# Half-written files from an interrupted atomic write. They are removed by the writer
+# itself; this is belt and braces so one can never be committed.
+.tmp-*

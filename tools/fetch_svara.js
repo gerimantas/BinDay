@@ -9,7 +9,11 @@
  * `subDistrict` is mandatory or `totalRecords` comes back 0 rather than everything.
  *
  *   npm i seroval
- *   node tools/fetch_svara.js --out data/catalog
+ *   node tools/fetch_svara.js            # writes data/raw/svara/
+ *
+ * Writes whole files into raw/ and never deletes: a municipality that fails leaves its
+ * previous file intact and the build uses that. Every municipality is attempted before
+ * the run exits non-zero, so one failure does not hide the state of the rest.
  *
  * Measured: 138 182 containers across 8 municipalities (Alytaus m. sav. is listed but
  * empty). `getcontracts` carries hashedId, so the resulting catalogue is enough to fetch
@@ -17,8 +21,8 @@
  */
 
 import { toJSONAsync } from 'seroval';
-import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { writeJson, rawPath, RAW } from './atomic.mjs';
 
 const FN = '540255adfb554d07c113b436aa5260c344d105f4d25780c646c3d51db39960be';
 const HEADERS = {
@@ -28,7 +32,10 @@ const HEADERS = {
 const PAGE_SIZE = 1000;          // largest accepted; a full page takes ~13 s
 
 const args = process.argv.slice(2);
-const outDir = args.includes('--out') ? args[args.indexOf('--out') + 1] : 'data/catalog';
+// Fetch output goes to raw/, which this script writes and never deletes.
+// Anything derived from it belongs in dist/, owned by the build step.
+const outDir = args.includes('--out') ? args[args.indexOf('--out') + 1]
+                                      : join(RAW, 'svara');
 
 /** Minimal seroval reader — enough for the object/array/string/bool shapes this API returns. */
 function plain(n) {
@@ -115,48 +122,65 @@ const slug = s => s.replace(/\s+/g, '-').replace(/[^\p{L}\p{N}-]/gu, '').toLower
 async function main() {
   const districts = await api('/schedule/getdistricts?search=');
   console.log(`Švara covers ${districts.length} municipalities`);
-  mkdirSync(outDir, { recursive: true });
+  console.log(`writing to ${outDir}/ — this run never deletes\n`);
 
   const index = [];
+  const failed = [];
   for (const { district: region } of districts) {
-    const subs = await api('/schedule/getsubdistricts?' + q({ region, search: '' }));
-    const entries = [];
-    for (const { subdistrict } of subs) {
-      for (let page = 0; ; page++) {
-        const r = await api('/schedule/getcontracts?' + q({
-          region, subDistrict: subdistrict, city: '', address: '', houseNumber: '',
-          search: '', pageSize: PAGE_SIZE, pageIndex: page,
-        }));
-        for (const c of r.data || []) {
-          // A few rows come back with inventoryNumber === false rather than a string.
-          // Keep them — the address and hashedId are still good, and the hashedId is
-          // what fetches the schedule — but never let a boolean reach the catalogue,
-          // where downstream code calls .split() on it.
-          const inv = typeof c.inventoryNumber === 'string' ? c.inventoryNumber : '';
-          if (!c.fullAddress || !c.hashedId) continue;
-          entries.push([c.fullAddress, inv, wasteType(c.description, inv), c.hashedId]);
+    // One municipality failing must not abandon the rest: a missing new file is
+    // not a deleted old one, so the previous fetch stays and the build uses it.
+    // Every unit is attempted; the run exits non-zero at the end if any failed.
+    try {
+      const subs = await api('/schedule/getsubdistricts?' + q({ region, search: '' }));
+      const entries = [];
+      for (const { subdistrict } of subs) {
+        for (let page = 0; ; page++) {
+          const r = await api('/schedule/getcontracts?' + q({
+            region, subDistrict: subdistrict, city: '', address: '', houseNumber: '',
+            search: '', pageSize: PAGE_SIZE, pageIndex: page,
+          }));
+          for (const c of r.data || []) {
+            // A few rows come back with inventoryNumber === false rather than a string.
+            // Keep them — the address and hashedId are still good, and the hashedId is
+            // what fetches the schedule — but never let a boolean reach the catalogue,
+            // where downstream code calls .split() on it.
+            const inv = typeof c.inventoryNumber === 'string' ? c.inventoryNumber : '';
+            if (!c.fullAddress || !c.hashedId) continue;
+            entries.push([c.fullAddress, inv, wasteType(c.description, inv), c.hashedId]);
+          }
+          if (page + 1 >= (r.totalPages || 0)) break;
         }
-        if (page + 1 >= (r.totalPages || 0)) break;
+        process.stdout.write(`\r  ${region}: ${entries.length} containers   `);
       }
-      process.stdout.write(`\r  ${region}: ${entries.length} containers   `);
+      if (!entries.length) {
+        console.log(`\r  ${region}: empty, skipped                `);
+        continue;
+      }
+      const area = slug(region);
+      const path = rawPath('svara', area, 'contracts');
+      writeJson(path, {
+        operator: 'UAB Kauno švara', municipality: region,
+        count: entries.length, entries,
+      }, { source: 'svara/getcontracts', request: { region } });
+      index.push({ operator: 'Švara', municipality: region,
+                   count: entries.length, area, file: path });
+      console.log(`\r  ${region}: ${entries.length} -> ${path}          `);
+    } catch (err) {
+      failed.push({ region, error: err.message });
+      console.log(`\r  ${region}: FAILED (${err.message}) — previous file kept`);
     }
-    if (!entries.length) {
-      console.log(`\r  ${region}: empty, skipped                `);
-      continue;
-    }
-    const file = `svara-${slug(region)}.json`;
-    writeFileSync(join(outDir, file), JSON.stringify({
-      operator: 'UAB Kauno švara', municipality: region,
-      count: entries.length, entries,
-    }), 'utf-8');
-    index.push({ operator: 'Švara', municipality: region, count: entries.length, file });
-    console.log(`\r  ${region}: ${entries.length} -> ${file}          `);
   }
 
-  writeFileSync(join(outDir, 'svara-index.json'),
-    JSON.stringify({ generated: new Date().toISOString().slice(0, 10), areas: index }, null, 1),
-    'utf-8');
-  console.log(`\nwrote ${index.length} municipality files to ${outDir}`);
+  writeJson(join(RAW, 'svara', 'index.json'),
+    { generated: new Date().toISOString().slice(0, 10), areas: index },
+    { source: 'svara/getdistricts' });
+  console.log(`\nwrote ${index.length} municipality files under ${RAW}/svara/`);
+
+  if (failed.length) {
+    console.error(`\n${failed.length} municipalities failed:`);
+    for (const f of failed) console.error(`   ${f.region}: ${f.error}`);
+    process.exit(1);
+  }
 }
 
 main().catch(e => { console.error('FAILED:', e.message); process.exit(1); });
