@@ -1,0 +1,19 @@
+# LF everywhere in the working tree, on every platform.
+#
+# Without this, Git's autocrlf checks these files out with CRLF on Windows while
+# every generator in tools/ writes LF, so a rebuild that changed nothing still
+# shows as modified. That cost a real diagnosis: version.json looked unstable
+# across rebuilds when its content was byte-identical and only the line endings
+# differed.
+#
+# It also matters for what ships. dist/ is committed and served to phones, and
+# tools/build_app.py compares index.html against src/ — a checkout that rewrote
+# the endings would make --check fail for a reason that has nothing to do with
+# the code.
+* text=auto eol=lf
+
+# Binary, never touched.
+*.png binary
+*.ico binary
+*.docx binary
+*.pdf binary
