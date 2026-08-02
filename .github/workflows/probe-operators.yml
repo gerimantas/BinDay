@@ -21,6 +21,12 @@ jobs:
         # shipping a stale index.html, which looks like the fix simply not working.
         run: python3 tools/build_app.py --check
 
+      - name: dist/ passes the publish gate
+        # The committed dist/ is what the app fetches. A build that lost an
+        # address or fused two of them looks entirely reasonable from every
+        # other angle — this is the check that says otherwise.
+        run: python3 tools/check_dist.py
+
       - name: Runner identity
         run: |
           echo "egress IP: $(curl -s --max-time 20 https://api.ipify.org || echo UNKNOWN)"

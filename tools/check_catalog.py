@@ -3,6 +3,12 @@
 
     python tools/check_catalog.py
 
+SUPERSEDED by tools/check_dist.py, which gates the dist/ layout this pipeline
+publishes. This one targets data/catalog/, with index.json / svara-index.json /
+areas.json hardcoded. Keep it running for as long as data/catalog/ exists — the
+app still fetches from there until step 7 — and delete it together with that
+directory. Do not add checks here; add them to check_dist.py.
+
 Every check here exists because the corresponding bug shipped silently at least once in
 this project — none of them raised an error at build time, and each produced output that
 looked entirely reasonable. Exits non-zero if any check fails, so it can gate a commit.

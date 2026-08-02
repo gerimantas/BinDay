@@ -142,6 +142,16 @@ def main():
     if "--area" in sys.argv:
         only = sys.argv[sys.argv.index("--area") + 1]
 
+    # Read the previous version.json before dist/ is touched — it is the only
+    # way to tell "rebuilt identical" from "rebuilt with changes".
+    prev_version = {}
+    if os.path.exists(os.path.join(DIST, "version.json")):
+        try:
+            prev_version = json.load(
+                io.open(os.path.join(DIST, "version.json"), encoding="utf-8"))
+        except (ValueError, OSError):
+            pass
+
     if os.path.exists(TMP):
         shutil.rmtree(TMP)
     os.makedirs(TMP)
@@ -181,10 +191,26 @@ def main():
     write_json(os.path.join(TMP, "areas.json"),
                {"generated": time.strftime("%Y-%m-%d"), "areas": areas_meta},
                source="build_dist")
+
+    # Carry the previous `built` timestamp forward when every area signature is
+    # unchanged. Otherwise a rebuild that produced identical data still changes
+    # version.json, which means a git diff on every run and — once step 9 lands
+    # — clients re-downloading an area whose contents did not move.
+    built = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    if prev_version.get("areas") == signatures and prev_version.get("built"):
+        built = prev_version["built"]
     write_json(os.path.join(TMP, "version.json"),
-               {"built": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "areas": signatures},
-               source="build_dist")
+               {"built": built, "areas": signatures}, source="build_dist")
+
+    # dist/ is a published artefact, not fetch output: its provenance is the
+    # commit that contains it. Sidecars belong to raw/, where they record what
+    # an operator returned and when. Keeping them here would mean a timestamp
+    # changing on every rebuild, so every run would show a git diff even when
+    # the data is identical — and a diff that is always there is never read.
+    for dirpath, _dirs, fs in os.walk(TMP):
+        for f in fs:
+            if f.endswith(".meta.json"):
+                os.remove(os.path.join(dirpath, f))
 
     # Rename last: dist/ is either the previous build or the new one, never half
     # of either.
