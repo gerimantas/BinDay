@@ -50,8 +50,30 @@ def post(body, timeout=90):
         return json.loads(raw.decode("utf-8"))
 
 
-def query(template, *, address=None, inventory=None):
-    """Address + inventory + the Datos measure, filtered to one address or container."""
+def query(template, *, address=None, inventory=None, max_pages=40):
+    """Address + inventory + the Datos measure, filtered to one address or container.
+
+    Paged. The window is 500 rows, and a locality query exceeds that easily —
+    Akademijos mstl. alone has 246 addresses and several containers each. The
+    truncation is silent: the response looks complete, and every address past
+    the cutoff simply has no dates. That cost 33 420 containers (25% of the
+    municipality) before it was caught, all of them looking like a normalisation
+    failure rather than a missing page.
+    """
+    rows, token = [], None
+    for _page in range(max_pages):
+        got, token = _query_page(template, address, inventory, token)
+        rows.extend(got)
+        if not token or not got:
+            break
+    else:
+        raise RuntimeError(
+            f"stopped at the {max_pages}-page cap with more data pending for "
+            f"{address or inventory!r} — the result is INCOMPLETE")
+    return rows
+
+
+def _query_page(template, address, inventory, restart_token):
     body = json.loads(json.dumps(template))
     cmd = body["queries"][0]["Query"]["Commands"][0]["SemanticQueryDataShapeCommand"]
     cmd["Query"]["Select"] = [
@@ -74,13 +96,16 @@ def query(template, *, address=None, inventory=None):
                                         "Property": "Inventorinis nr."}}],
             "Values": [[{"Literal": {"Value": "'" + inventory.replace("'", "''") + "'"}}]]}}})
     cmd["Binding"]["Primary"] = {"Groupings": [{"Projections": [0, 1, 2]}]}
-    cmd["Binding"]["DataReduction"] = {"DataVolume": 4, "Primary": {"Window": {"Count": 500}}}
+    window = {"Count": 500}
+    if restart_token:
+        window["RestartTokens"] = restart_token
+    cmd["Binding"]["DataReduction"] = {"DataVolume": 4, "Primary": {"Window": window}}
 
     data = post(body)["results"][0]["result"]["data"]
     ds = data["dsr"].get("DS")
     if not ds:
         raise RuntimeError("no dataset: " + json.dumps(data["dsr"], ensure_ascii=False)[:200])
-    return decode(ds[0])
+    return decode(ds[0]), ds[0].get("RT")
 
 
 TYPE_BY_SUFFIX = {"Komunalinės": "MIXED", "Pakuotė": "PACKAGING", "Stiklas": "GLASS",

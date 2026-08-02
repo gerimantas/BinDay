@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from atomic import write_json, read_meta  # noqa: E402
 from normalise import PARSERS, key_str    # noqa: E402
+from merge_dates import attach            # noqa: E402
 
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -141,12 +142,19 @@ def build_area(slug, spec):
     for loc, street, house, flat in by_key:
         index[loc][street].add(house + ("-" + flat if flat else ""))
 
+    # Attach dates, if they have been fetched. Rows gain a fourth element: an
+    # index into `schedules`. Measured 119 distinct date sets behind 16 093
+    # containers, so storing the dates per container would repeat the same
+    # dozen strings tens of thousands of times.
+    schedules, date_stats = attach(by_key, slug)
+
     # `operators` makes the integer in each row readable without consulting
     # another file — a data file that cannot be understood on its own is how an
     # index that lies gets believed. Sorted on the string form because the raw
     # key holds None for "no flat", and None is not comparable with str.
     data = {
         "operators": ops,
+        "schedules": schedules,
         "addresses": {key_str(k): by_key[k] for k in sorted(by_key, key=key_str)},
         # The administrative tail is dropped here rather than in the browser:
         # ", Garliavos apylinkių sen. Kauno r. sav." repeats on all 40 960 rows
@@ -165,6 +173,15 @@ def build_area(slug, spec):
     print(f"     {len(index_out)} localities, "
           f"{sum(len(s) for s in index_out.values())} streets")
 
+    # An address counts as covered only if every one of its containers has
+    # dates. A partially-dated address is the failure the app must not present
+    # as complete: the user sees a schedule and quietly misses the bin that is
+    # not in it.
+    full = sum(1 for rows in by_key.values() if all(len(r) > 3 for r in rows))
+    print(f"     {full}/{len(by_key)} addresses have dates for every container "
+          f"({full*100.0/max(1,len(by_key)):.1f}%)")
+
+    stats.append({"dates": date_stats, "addresses_fully_dated": full})
     return index_out, data, stats
 
 

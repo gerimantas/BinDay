@@ -167,12 +167,17 @@ async function main() {
           }));
           for (const c of r.data || []) {
             // A few rows come back with inventoryNumber === false rather than a string.
-            // Keep them — the address and hashedId are still good, and the hashedId is
-            // what fetches the schedule — but never let a boolean reach the catalogue,
-            // where downstream code calls .split() on it.
+            // Keep them — the address and ids are still good — but never let a boolean
+            // reach the catalogue, where downstream code calls .split() on it.
             const inv = typeof c.inventoryNumber === 'string' ? c.inventoryNumber : '';
             if (!c.fullAddress || !c.hashedId) continue;
-            entries.push([c.fullAddress, inv, wasteType(c.description, inv), c.hashedId]);
+            // wasteObjectId is what getschedule takes. hashedId does NOT work there
+            // (measured: it returns an empty result under every parameter name), so
+            // without this field the date fetch would need a second getcontracts call
+            // per container — 57 091 extra requests for a value this response already
+            // carries.
+            entries.push([c.fullAddress, inv, wasteType(c.description, inv),
+                          c.hashedId, c.wasteObjectId ?? null]);
           }
           if (page + 1 >= (r.totalPages || 0)) break;
         }

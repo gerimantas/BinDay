@@ -40,11 +40,38 @@ async function getIndex() {
    Each container is stored as [id, type, operatorIndex] against the area's own
    `operators` list — repeating the key names for 133 000 containers cost more
    than the data itself. Expanded here, once per area, rather than in the file. */
+/* Turn a search hit into the shape setActiveSchedule() takes.
+
+   One entry per container, carrying its own dates — the same shape as
+   DEFAULT_SCHEDULE, so render, buildCalendar and the ICS export need no special
+   case for a picked address. Containers with no published dates are dropped
+   here rather than rendered as empty: an entry with no dates would show as a
+   bin that is never collected. applyActive() reports them separately.
+
+   `until` is the last published date, which is what the app's expiry footer
+   reads. Never extrapolate past it — that is the operator's horizon, not a
+   guess, and Švara's schedule genuinely deviates within it. */
+function scheduleFor(hit) {
+  return hit.containers
+    .filter(c => c.dates && c.dates.length)
+    .map(c => {
+      const meta = TYPE_META[c.type] || TYPE_META.OTHER;
+      const dates = c.dates.slice().sort();
+      return {
+        type: c.type, label: meta.label, id: c.id,
+        emoji: meta.emoji, color: meta.color,
+        operator: c.operator, until: dates[dates.length - 1],
+        dates
+      };
+    });
+}
+
 async function getArea(slug) {
   if (!areaCache.has(slug)) {
     const d = await getJSON(slug + '/data.json');
     const ops = d.operators || [];
     const labels = d.labels || {};
+    const schedules = d.schedules || [];
     const rows = [];
     for (const [key, containers] of Object.entries(d.addresses || {})) {
       const [locality, street, house, flat] = key.split('|');
@@ -55,7 +82,11 @@ async function getArea(slug) {
         // normalised for matching and reads as "jurag|zalgirio g|8a|".
         address: labels[key] || `${street} ${house}, ${locality}`,
         containers: containers.map(c => ({
-          id: c[0], type: c[1], operator: ops[c[2]] || '?'
+          id: c[0], type: c[1], operator: ops[c[2]] || '?',
+          // c[3] indexes the area's shared schedule table; absent when the
+          // operator publishes no dates for this container. Undefined and
+          // "no pickups" are different answers, so the distinction is kept.
+          dates: c.length > 3 ? schedules[c[3]] : null
         }))
       });
     }

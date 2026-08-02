@@ -1052,11 +1052,38 @@ async function getIndex() {
    Each container is stored as [id, type, operatorIndex] against the area's own
    `operators` list — repeating the key names for 133 000 containers cost more
    than the data itself. Expanded here, once per area, rather than in the file. */
+/* Turn a search hit into the shape setActiveSchedule() takes.
+
+   One entry per container, carrying its own dates — the same shape as
+   DEFAULT_SCHEDULE, so render, buildCalendar and the ICS export need no special
+   case for a picked address. Containers with no published dates are dropped
+   here rather than rendered as empty: an entry with no dates would show as a
+   bin that is never collected. applyActive() reports them separately.
+
+   `until` is the last published date, which is what the app's expiry footer
+   reads. Never extrapolate past it — that is the operator's horizon, not a
+   guess, and Švara's schedule genuinely deviates within it. */
+function scheduleFor(hit) {
+  return hit.containers
+    .filter(c => c.dates && c.dates.length)
+    .map(c => {
+      const meta = TYPE_META[c.type] || TYPE_META.OTHER;
+      const dates = c.dates.slice().sort();
+      return {
+        type: c.type, label: meta.label, id: c.id,
+        emoji: meta.emoji, color: meta.color,
+        operator: c.operator, until: dates[dates.length - 1],
+        dates
+      };
+    });
+}
+
 async function getArea(slug) {
   if (!areaCache.has(slug)) {
     const d = await getJSON(slug + '/data.json');
     const ops = d.operators || [];
     const labels = d.labels || {};
+    const schedules = d.schedules || [];
     const rows = [];
     for (const [key, containers] of Object.entries(d.addresses || {})) {
       const [locality, street, house, flat] = key.split('|');
@@ -1067,7 +1094,11 @@ async function getArea(slug) {
         // normalised for matching and reads as "jurag|zalgirio g|8a|".
         address: labels[key] || `${street} ${house}, ${locality}`,
         containers: containers.map(c => ({
-          id: c[0], type: c[1], operator: ops[c[2]] || '?'
+          id: c[0], type: c[1], operator: ops[c[2]] || '?',
+          // c[3] indexes the area's shared schedule table; absent when the
+          // operator publishes no dates for this container. Undefined and
+          // "no pickups" are different answers, so the distinction is kept.
+          dates: c.length > 3 ? schedules[c[3]] : null
         }))
       });
     }
@@ -1332,7 +1363,11 @@ function addAddress(hit) {
       area: areaValue,
       address: hit.address,
       containers: hit.containers.map(c => ({ id: c.id, type: c.type,
-                                             operator: c.operator }))
+                                             operator: c.operator })),
+      // The dates, resolved from the area's shared schedule table at pick time
+      // and stored alongside the address so the app renders offline without
+      // re-reading the 7 MB area file.
+      schedule: scheduleFor(hit)
     });
     saved.active = saved.list.length - 1;
   }
@@ -1385,11 +1420,13 @@ async function locate() {
 /* Swap the rendered schedule to the active saved address.
 
    The catalogue holds containers, not dates — fetching dates in bulk is far
-   too slow at the operators' end, so a saved address carries its schedule
-   alongside it once fetched. Until that per-address schedule feed exists,
-   an address selected here shows its containers and states plainly that the
-   dates are still coming, rather than showing the built-in address's dates
-   under someone else's street name. */
+   Dates come from dist/, resolved when the address is picked and stored with
+   it, so the app renders offline without re-reading the area file.
+
+   (The earlier note here said bulk date fetching was "far too slow at the
+   operators' end". That was wrong: Švara answers 58 477 containers in 9
+   minutes at 8 concurrent requests, and Ekonovus returns a whole locality per
+   request. Nothing needs to be fetched live.) */
 function applyActive() {
   const a = saved.list[saved.active];
   if (!a) {
@@ -1399,22 +1436,41 @@ function applyActive() {
     return;
   }
   document.getElementById('addr').textContent = shortAddress(a.address);
+
   if (a.schedule && a.schedule.length) {
     setActiveSchedule(a.schedule);
     refresh();
+    /* Some containers at this address may have no published dates. Say so
+       rather than letting the schedule read as complete — a bin missing from a
+       schedule the user trusts is the one failure they actually notice. */
+    const dated = new Set(a.schedule.map(c => c.id));
+    const undated = (a.containers || []).filter(c => !dated.has(c.id));
+    if (undated.length) {
+      const names = undated
+        .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
+        .map(m => m.emoji + ' ' + m.label).join(' · ');
+      const note = document.createElement('div');
+      note.className = 'notice';
+      note.style.marginTop = '16px';
+      note.textContent = 'Šiems konteineriams datų kol kas nėra: ' + names
+        + ' (' + undated.map(c => c.id).join(', ') + '). '
+        + 'Rodomas grafikas jų neapima.';
+      document.getElementById('app').appendChild(note);
+    }
     return;
   }
-  /* No dates for this address yet — make sure a previously selected address's
-     schedule is not left on screen under this one's name. */
+
+  /* No dates at all — make sure a previously selected address's schedule is not
+     left on screen under this one's name. */
   setActiveSchedule();
-  const types = a.containers
+  const types = (a.containers || [])
     .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
     .map(m => m.emoji + ' ' + m.label).join(' · ');
   document.getElementById('app').innerHTML =
     '<div class="notice">Rasti konteineriai: ' + types
-    + '<br><br>Išvežimo datos šiam adresui dar neįkeltos — ruošiame. '
+    + '<br><br>Išvežimo datų šiam adresui operatoriai kol kas neskelbia. '
     + 'Konteinerių numeriai: '
-    + a.containers.map(c => c.id).join(', ') + '</div>';
+    + (a.containers || []).map(c => c.id).join(', ') + '</div>';
 }
 
 function showPage(which) {
@@ -1487,7 +1543,12 @@ $('q').addEventListener('input', () => {
   searchTimer = setTimeout(doSearch, 200);
 });
 
-refresh();
+/* Restore the active saved address before the first paint. Without this the app
+   opens on the built-in Juragiai schedule and only switches once the user opens
+   the menu — invisible until dates existed, and exactly the "right dates under
+   the wrong address" failure the schedule accessors were introduced to prevent.
+   applyActive() falls back to the shipped schedule when nothing is saved. */
+applyActive();
 setInterval(refresh, 60000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();

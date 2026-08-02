@@ -88,7 +88,14 @@ def split_house(h):
 
 
 def parse_svara(addr):
-    """-> (locality, street, house, flat) or None."""
+    """-> (locality, street, house, flat) or None.
+
+    Field 0 is "<street> <house>", field 1 the locality, the rest the
+    administrative tail. But a few rows list several house numbers in field 0
+    ("Vieversių g. 11,13,15, Užliedžių k., …"), which splits into extra fields
+    and would make "13" the locality. So the locality is the last field before
+    the tail, and the street/house is taken from the first field that parses.
+    """
     parts = [p.strip() for p in str(addr).split(",") if p.strip()]
     if len(parts) < 2:
         return None
@@ -98,7 +105,20 @@ def parse_svara(addr):
     house, flat = split_house(m.group(2))
     if not house:
         return None
-    loc, street = loc_stem(parts[1]), street_stem(m.group(1))
+
+    # The locality is the last field that is not part of the administrative
+    # tail ("… sen. … sav.") and is not a bare house number.
+    locality = None
+    for p in parts[1:]:
+        if re.search(r"\b(sen|sav)\.", p):
+            break
+        if re.fullmatch(r"[\d/\-]+[a-zA-Z]?", p):
+            continue          # another house number from a multi-house row
+        locality = p
+    if not locality:
+        return None
+
+    loc, street = loc_stem(locality), street_stem(m.group(1))
     return (loc, street, house, flat) if loc and street else None
 
 

@@ -56,7 +56,12 @@ $('q').addEventListener('input', () => {
   searchTimer = setTimeout(doSearch, 200);
 });
 
-refresh();
+/* Restore the active saved address before the first paint. Without this the app
+   opens on the built-in Juragiai schedule and only switches once the user opens
+   the menu — invisible until dates existed, and exactly the "right dates under
+   the wrong address" failure the schedule accessors were introduced to prevent.
+   applyActive() falls back to the shipped schedule when nothing is saved. */
+applyActive();
 setInterval(refresh, 60000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();

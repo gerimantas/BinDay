@@ -20,6 +20,7 @@ import io
 import json
 import os
 import sys
+import time
 from collections import Counter
 
 for _s in (sys.stdout, sys.stderr):
@@ -152,6 +153,7 @@ def main():
         check_types(slug, addr, fail, warn)
         check_index_agrees(slug, addr, index, fail, warn)
         check_no_collapse(slug, addr, fail, warn)
+        check_dates(slug, data, addr, fail, warn)
 
     check_known(areas, fail, warn)
 
@@ -239,6 +241,61 @@ def check_no_collapse(slug, addr, fail, warn):
                      f"{case['house']} keeps {len(flats)} flats, expected at "
                      f"least {case['min_flats']} — the flat has been dropped "
                      f"from the key. {case['why']}")
+
+
+MIN_DATED = 0.90          # share of containers that must carry a schedule
+
+
+def check_dates(slug, data, addr, fail, warn):
+    """Dates must be present, plausible, and evenly spread across operators.
+
+    The failure this catches was silent and cost 25% of the municipality: the
+    Power BI date query returns a 500-row window, and a locality with more rows
+    than that simply ended early. Every address past the cutoff looked exactly
+    like a normalisation miss — same shape, no error, plausible totals — so a
+    coverage floor per operator is the only thing that distinguishes them.
+    """
+    schedules = data.get("schedules")
+    if not schedules:
+        fail(f"{slug}: no schedules — dates have not been merged")
+        return
+
+    dated = total = 0
+    by_op = {}
+    for rows in addr.values():
+        for r in rows:
+            total += 1
+            op = data["operators"][r[2]] if r[2] < len(data["operators"]) else "?"
+            seen, has = by_op.setdefault(op, [0, 0]), len(r) > 3
+            seen[0] += 1
+            if has:
+                seen[1] += 1
+                dated += 1
+                if not (0 <= r[3] < len(schedules)):
+                    fail(f"{slug}: container {r[0]} points at schedule {r[3]}, "
+                         f"which does not exist")
+                    return
+
+    if total and dated / total < MIN_DATED:
+        fail(f"{slug}: only {dated}/{total} containers have dates "
+             f"({dated/total:.0%}), expected at least {MIN_DATED:.0%}")
+    for op, (seen, has) in sorted(by_op.items()):
+        if seen and has / seen < MIN_DATED:
+            fail(f"{slug}: {op} has dates for {has}/{seen} containers "
+                 f"({has/seen:.0%}) — a paged fetch probably stopped early")
+
+    # A schedule that is entirely in the past would render as an empty app.
+    today = time.strftime("%Y-%m-%d")
+    stale = [i for i, s in enumerate(schedules) if s and max(s) < today]
+    if stale:
+        fail(f"{slug}: {len(stale)} schedules end before today — the operator "
+             f"horizon has passed and the data needs re-fetching")
+    empty = [i for i, s in enumerate(schedules) if not s]
+    if empty:
+        fail(f"{slug}: {len(empty)} schedules are empty")
+
+    print(f"  {slug}: {dated}/{total} containers dated ({dated/total:.0%}), "
+          f"{len(schedules)} distinct schedules")
 
 
 def check_known(areas, fail, warn):
