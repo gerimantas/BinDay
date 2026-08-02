@@ -22,7 +22,8 @@ const TYPE_META = {
 };
 
 let areasIndex = null;              // dist/areas.json
-const areaCache = new Map();        // slug -> {operators, addresses}
+const areaCache = new Map();        // slug -> rows[]
+const areaCollected = new Map();    // slug -> the date its data was fetched
 
 async function getJSON(path) {
   const r = await fetch(DIST + path);
@@ -72,6 +73,7 @@ async function getArea(slug) {
     const ops = d.operators || [];
     const labels = d.labels || {};
     const schedules = d.schedules || [];
+    areaCollected.set(slug, d.collected || null);
     const rows = [];
     for (const [key, containers] of Object.entries(d.addresses || {})) {
       const [locality, street, house, flat] = key.split('|');

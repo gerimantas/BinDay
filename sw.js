@@ -1,7 +1,7 @@
 // Bump CACHE on every deploy that changes index.html, or clients keep serving
 // the stale schedule from cache indefinitely. tools/build_app.py does this
 // automatically — do not rely on remembering.
-const CACHE = 'binday-v14';
+const CACHE = 'binday-v15';
 
 // The app shell. Pre-cached on install so the app opens with no signal.
 const ASSETS = [

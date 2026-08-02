@@ -614,7 +614,26 @@
    app says "refresh needed" instead of inventing dates.
 ------------------------------------------------------------------ */
 const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav.';
-const COLLECTED = '2026-07-30';
+/* When the operators were last asked for the schedule currently on screen.
+
+   This is per-address, not per-build: the shipped Juragiai schedule was
+   collected on the date below, while a picked address carries the date its own
+   area's data was fetched. Showing a build date instead would claim freshness
+   the data does not have — rebuilding from unchanged raw/ makes nothing newer.
+
+   Kept as a `let` set through setCollected() for the same reason CONTAINERS
+   became getSchedule(): a value that changes with the active address must not
+   be a binding other modules captured at load time. */
+const DEFAULT_COLLECTED = '2026-08-02';
+let collected = DEFAULT_COLLECTED;
+
+function getCollected() {
+  return collected;
+}
+
+function setCollected(date) {
+  collected = date || DEFAULT_COLLECTED;
+}
 
 /* The schedule shipped with the app — the default shown when no saved address is
    active. Treat as immutable: it is the fallback applyActive() returns to. */
@@ -838,7 +857,7 @@ function render(now) {
     .map(c => c.label);
 
   html += `<footer>
-    Duomenys surinkti ${COLLECTED}<br>
+    Duomenys surinkti ${getCollected()}<br>
     Konteinerius paruošti iš vakaro
     ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
   </footer>`;
@@ -1034,7 +1053,8 @@ const TYPE_META = {
 };
 
 let areasIndex = null;              // dist/areas.json
-const areaCache = new Map();        // slug -> {operators, addresses}
+const areaCache = new Map();        // slug -> rows[]
+const areaCollected = new Map();    // slug -> the date its data was fetched
 
 async function getJSON(path) {
   const r = await fetch(DIST + path);
@@ -1084,6 +1104,7 @@ async function getArea(slug) {
     const ops = d.operators || [];
     const labels = d.labels || {};
     const schedules = d.schedules || [];
+    areaCollected.set(slug, d.collected || null);
     const rows = [];
     for (const [key, containers] of Object.entries(d.addresses || {})) {
       const [locality, street, house, flat] = key.split('|');
@@ -1367,7 +1388,10 @@ function addAddress(hit) {
       // The dates, resolved from the area's shared schedule table at pick time
       // and stored alongside the address so the app renders offline without
       // re-reading the 7 MB area file.
-      schedule: scheduleFor(hit)
+      schedule: scheduleFor(hit),
+      // When this area's data was fetched from the operators, so the footer
+      // states the age of what is on screen rather than a build date.
+      collected: areaCollected.get(areaValue) || null
     });
     saved.active = saved.list.length - 1;
   }
@@ -1431,11 +1455,13 @@ function applyActive() {
   const a = saved.list[saved.active];
   if (!a) {
     setActiveSchedule();          // back to the shipped Juragiai schedule
+    setCollected(null);
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
   }
   document.getElementById('addr').textContent = shortAddress(a.address);
+  setCollected(a.collected);
 
   if (a.schedule && a.schedule.length) {
     setActiveSchedule(a.schedule);
@@ -1620,6 +1646,7 @@ async function applyNewData(slugs) {
     a.containers = hit.containers.map(c => ({ id: c.id, type: c.type,
                                               operator: c.operator }));
     a.schedule = scheduleFor(hit);
+    a.collected = areaCollected.get(a.area) || null;
     persist(saved);
     applyActive();
     return true;
@@ -1647,7 +1674,11 @@ async function fillDataInfo() {
     const idx = await getIndex();
     const names = idx.areas.map(a => a.municipality).join(', ');
     const total = idx.areas.reduce((n, a) => n + (a.addresses || 0), 0);
-    el.textContent = `Duomenys surinkti ${idx.generated}. Veikia: ${names} `
+    // The oldest collection date across areas, not the build date: rebuilding
+    // from unchanged raw/ does not make the data newer.
+    const dates = idx.areas.map(a => a.collected).filter(Boolean);
+    const when = dates.length ? dates.sort()[0] : idx.generated;
+    el.textContent = `Duomenys surinkti ${when}. Veikia: ${names} `
       + `(${total.toLocaleString('lt-LT')} adresų). `
       + `Kitos savivaldybės dar neįkeltos.`;
   } catch (e) {

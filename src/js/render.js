@@ -112,7 +112,7 @@ function render(now) {
     .map(c => c.label);
 
   html += `<footer>
-    Duomenys surinkti ${COLLECTED}<br>
+    Duomenys surinkti ${getCollected()}<br>
     Konteinerius paruošti iš vakaro
     ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
   </footer>`;

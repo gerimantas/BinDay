@@ -24,6 +24,7 @@ carries container ids so step 8 can attach date lists without changing this
 shape.
 """
 
+import glob
 import io
 import json
 import os
@@ -104,6 +105,29 @@ def trim_tail(label):
     return TAIL.sub("", label).strip().rstrip(",")
 
 
+def oldest_fetch(area):
+    """The oldest fetched_at behind this area, as a date.
+
+    The OLDEST, not the newest: freshness is set by the most stale input, and a
+    build that re-fetched one operator would otherwise claim the age of that
+    single run. Covers the catalogues and every date file.
+    """
+    stamps = []
+    paths = [
+        os.path.join(RAW, "svara", area, "contracts.json"),
+        os.path.join(RAW, "svara", area, "dates.json"),
+        os.path.join(RAW, "ekonovus", "ekonovus-52.json"),
+    ]
+    paths += [p for p in glob.glob(
+        os.path.join(RAW, "ekonovus", "dates", area, "*.json"))
+        if not p.endswith(".meta.json")]
+    for p in paths:
+        meta = read_meta(p)
+        if meta and meta.get("fetched_at"):
+            stamps.append(meta["fetched_at"])
+    return min(stamps)[:10] if stamps else None
+
+
 def build_area(slug, spec):
     rows, stats = [], []
     for parser_name, operator, path in spec["sources"]:
@@ -154,6 +178,10 @@ def build_area(slug, spec):
     # key holds None for "no flat", and None is not comparable with str.
     data = {
         "operators": ops,
+        # Repeated here as well as in areas.json: a saved address renders from
+        # this file alone, and the app must be able to state the data's age
+        # without a second fetch.
+        "collected": oldest_fetch(slug),
         "schedules": schedules,
         "addresses": {key_str(k): by_key[k] for k in sorted(by_key, key=key_str)},
         # The administrative tail is dropped here rather than in the browser:
@@ -224,6 +252,10 @@ def main():
             "municipality": spec["municipality"],
             "addresses": len(data["addresses"]),
             "operators": [op for _p, op, _f in spec["sources"]],
+            # When the operators were last asked — what the app shows as
+            # "Duomenys surinkti". Not the build time: rebuilding from
+            # unchanged raw/ does not make the data any fresher.
+            "collected": oldest_fetch(slug),
             "files": ["index.json", "data.json"],
         })
 

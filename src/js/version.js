@@ -133,6 +133,7 @@ async function applyNewData(slugs) {
     a.containers = hit.containers.map(c => ({ id: c.id, type: c.type,
                                               operator: c.operator }));
     a.schedule = scheduleFor(hit);
+    a.collected = areaCollected.get(a.area) || null;
     persist(saved);
     applyActive();
     return true;

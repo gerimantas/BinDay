@@ -11,7 +11,26 @@
    app says "refresh needed" instead of inventing dates.
 ------------------------------------------------------------------ */
 const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav.';
-const COLLECTED = '2026-07-30';
+/* When the operators were last asked for the schedule currently on screen.
+
+   This is per-address, not per-build: the shipped Juragiai schedule was
+   collected on the date below, while a picked address carries the date its own
+   area's data was fetched. Showing a build date instead would claim freshness
+   the data does not have — rebuilding from unchanged raw/ makes nothing newer.
+
+   Kept as a `let` set through setCollected() for the same reason CONTAINERS
+   became getSchedule(): a value that changes with the active address must not
+   be a binding other modules captured at load time. */
+const DEFAULT_COLLECTED = '2026-08-02';
+let collected = DEFAULT_COLLECTED;
+
+function getCollected() {
+  return collected;
+}
+
+function setCollected(date) {
+  collected = date || DEFAULT_COLLECTED;
+}
 
 /* The schedule shipped with the app — the default shown when no saved address is
    active. Treat as immutable: it is the fallback applyActive() returns to. */

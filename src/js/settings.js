@@ -166,7 +166,10 @@ function addAddress(hit) {
       // The dates, resolved from the area's shared schedule table at pick time
       // and stored alongside the address so the app renders offline without
       // re-reading the 7 MB area file.
-      schedule: scheduleFor(hit)
+      schedule: scheduleFor(hit),
+      // When this area's data was fetched from the operators, so the footer
+      // states the age of what is on screen rather than a build date.
+      collected: areaCollected.get(areaValue) || null
     });
     saved.active = saved.list.length - 1;
   }
@@ -230,11 +233,13 @@ function applyActive() {
   const a = saved.list[saved.active];
   if (!a) {
     setActiveSchedule();          // back to the shipped Juragiai schedule
+    setCollected(null);
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
   }
   document.getElementById('addr').textContent = shortAddress(a.address);
+  setCollected(a.collected);
 
   if (a.schedule && a.schedule.length) {
     setActiveSchedule(a.schedule);
