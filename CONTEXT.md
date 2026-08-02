@@ -2,76 +2,74 @@
 
 ## Status
 
-**active** — 2026-08-02 (S3)
+**active** — 2026-08-03 (S4)
 
 Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ and
 installable to a phone home screen. Answers one question — do the bins go out tonight —
 and exports the whole schedule to a calendar.
 
-S3 measured the whole address→container→dates chain and wrote an implementation plan from
-it (`.planning/PIPELINE_PLAN.md`, committed `54abf93`). No app code changed.
+**Multi-address now works in production**, verified against the live site in a real
+browser: any of 40 959 Kauno r. addresses resolves to its own containers and its own
+dates, offline after one load. S3 left it non-functional (no data path at all); S4 executed
+all ten steps of `.planning/PIPELINE_PLAN.md`.
 
-**The multi-address feature does not work in production, and the reason is worse than
-"stale data": there is no data path at all.** `data/catalog/` is gitignored, so the live
-`data/catalog/areas.json` returns **404**; `sw.js` caches no data file and calls
-`cache.put` nowhere; and `applyActive()` reads an `a.schedule` that nothing ever writes, so
-every saved address shows "Išvežimo datos šiam adresui dar neįkeltos". Found by checking
-the code rather than the notes about it — this corrected six claims in the plan's own first
-draft.
+The pipeline: `data/raw/` (fetch writes, never deletes, gitignored) → `dist/` (build owns
+it, committed, served). 99.5% of 132 260 containers carry dates, collapsing to 185 shared
+schedules. A monthly workflow refreshes it behind a pre-check that costs one request when
+nothing changed; a weekly one checks both operators still answer.
 
-What the measurements settled: the RC Address Register is the **wrong** source (a container
-belongs to a contract, not an address — 53.7% of its Kauno r. addresses have none), the
-address list must come from the operator catalogues (36 348 merged addresses), and dates
-are reachable in bulk from both operators, contradicting the earlier notes. Scope is now
-**Kauno r. only** — Kaunas city is communal containers, a different product.
-See [[wiki/bin-day/address-chain-s3]] for the full measured chain.
+**The key correction of this session: the merge key is `(locality, street, house, flat)` —
+all four, verified against fetched dates rather than match rates.** Three sessions had
+treated an "88.8% overlap ceiling" as an operator problem to normalise away. Measured, it
+was mostly self-inflicted: dropping the flat accounted for 14.0 of 17.8 percentage points,
+genuine operator disagreement is 0.2%. Two recorded rules were wrong and are marked
+superseded in `DECISIONS.md` — *"a container stands at a building, not a flat"* (every
+multi-flat building gives each flat its own container; 60% of Švara ones differ in dates)
+and *"merge on street+house, locality is a display label"* (1 406 of 1 442 multi-locality
+keys have different dates). See [[wiki/bin-day/merge-key-s4]].
 
-Three containers at Žalgirio g. 8A, Juragiai — all collected on Tuesdays:
+Four defects were found by running things rather than reading them, each silent: `hashedId`
+does not drive `getschedule`; the Power BI date query has an unpaged 500-row window that
+cost 25% of the municipality; `version.json` was itself cached, which would have broken the
+update on exactly the deploy it exists to deliver; and `cache: 'reload'` does not bypass a
+service worker, so the signature updated while the data did not.
 
-| Type | Container | Operator | Interval | Published until |
-|------|-----------|----------|----------|-----------------|
-| MIXED | `52-MK-036668` | UAB Kauno švara | 14 d | 2027-07-20 |
-| PACKAGING | `52-P-22781` | Ekonovus | 21 d | 2027-03-23 |
-| GLASS | `52-S-24716` | Ekonovus | 84 d | 2027-07-06 |
-
-**Prior status (S2):** proved both operators expose anonymous bulk APIs so no backend is
-needed; built the catalogue tooling, the ☰ menu with saved addresses, address search and
-the redesign. Left the catalogue pipeline untrustworthy — rebuilt six times, `Kauno m.
-sav.` destroyed twice by `build_index.py` deleting files it did not create.
+**Prior status (S3):** measured the address→container→dates chain end to end and wrote the
+plan. Rejected the RC Address Register as the search source (53.7% of its Kauno r.
+addresses have no container). Found the multi-address feature had no data path in
+production at all — `data/catalog/` gitignored, so the live index 404'd.
 
 ## Next Tasks
 
-- **Execute `.planning/PIPELINE_PLAN.md`, starting at step 1.** Ten ordered steps, each
-  verifiable alone. Step 1 is a prerequisite for everything else and is small: `CONTAINERS`
-  is a `const` array that `applyActive()` mutates in place (`CONTAINERS.length = 0`), which
-  works only by shared scope — split into modules and the mutation stops propagating
-  silently, leaving the app rendering the hardcoded Juragiai schedule while claiming another
-  address. Replace it with `setActiveSchedule()`/`getSchedule()` as its own commit against
-  the current single file, where it is verifiable. Plan: `.planning/PIPELINE_PLAN.md`.
-- **Decide the `localStorage` migration before plan step 8 — it is a one-way door.**
-  `binday.addresses` stores Švara's full address string; the merged list keys on
-  `(locality, street, house)`, so saved entries cannot match by construction. Migrate by
-  re-resolving through the new index and keep unresolved entries visible and marked; a user
-  whose addresses vanish silently has no way to know why.
-- **Delete `.github/workflows/probe-operators.yml` once the real build workflow exists**, or
-  keep it deliberately as a health check. It answered its question — both operators respond
-  from a runner, Ekonovus faster there (0.6 s) than locally (9.4 s).
-- **Split the `binday` skill once the data pipeline stops changing.** SKILL.md is 470
+- **Watch the first scheduled refresh (2026-09-03, 04:17 UTC).** Never run unattended
+  end-to-end: a forced run reached "Fetch dates" and was still going at ~80 min of its
+  90-minute cap. If it times out, the fix is to split catalogues and dates into separate
+  jobs, or raise the cap. `gh run list --workflow="Refresh schedules"`.
+- **Migrate saved addresses from the pre-S4 shape.** Entries saved before this session hold
+  Švara's full address string and no `key`, so they match on address and keep working, but
+  they will never pick up new data. Re-resolve them through the index on load and mark any
+  that fail rather than dropping them — a user whose addresses vanish silently has no way
+  to know why. Also: a saved *building* may now resolve to several flats with different
+  schedules, so ask rather than picking one.
+- **337 addresses (0.8%) still have a container without dates.** Not investigated: whether
+  the operators publish nothing for them or the parse misses them. `check_dist.py` enforces
+  a 90% floor per operator, so this is visible but tolerated.
+- **Split the `binday` skill — the pipeline has stopped changing, so the deferral no longer
+  applies.** SKILL.md is 470
   lines / 25.7 KB and loads on every trigger. The Power BI section alone is 93 lines
   (20%) of call-shape detail only needed when actually calling Ekonovus — move it to
-  `references/` like `operator-gotchas.md`, leaving ~380 lines. Deliberately deferred:
-  refactoring the skill while the tools it documents are still being fixed risks
-  breaking both at once.
+  `references/` like `operator-gotchas.md`, leaving ~380 lines. It also needs S4's
+  corrections: the four-part key, the unpaged 500-row date window, and that `hashedId`
+  does not drive `getschedule`.
 - **Second calendar reminder does not survive Google import.** Google Calendar keeps only
   the first `VALARM` from an imported ICS, so the 20:00 alert is dropped and only 17:00
   shows. Fix by creating a dedicated `BinDay` calendar in Google with two default event
   notifications (1 day before at 17:00 and at 20:00) and importing into it — the file
   itself is correct and needs no change. Alternative if that's unwanted: emit two timed
   events on the evening before instead of one all-day event.
-- **Refresh the schedule — Švara has extended MIXED to 2027-10-12**, six dates beyond what
-  `data/Atlieku_isvezimo_grafikai.md` records. Use the `binday` skill; the fast
-  path is the unauthenticated PDF endpoint, not the browser. After regenerating, update
-  `CONTAINERS` in `index.html` and bump `CACHE` in `sw.js`.
+- **`data/Atlieku_isvezimo_grafikai.md` is now orphaned.** It was the canonical schedule
+  source when the app shipped one hardcoded address; `dist/` has superseded it and nothing
+  reads it. Delete it, or keep it deliberately as a human-readable record and say so.
 - Consider a `pwa-single-file` skill once a third PWA exists — this session re-solved
   service-worker cache bumps, the iOS `apple-touch-icon` requirement, and two date bugs
   that the Grafikai project had already hit.
@@ -81,6 +79,21 @@ sav.` destroyed twice by `build_index.py` deleting files it did not create.
 
 ## Done Log
 
+- **S4:** Executed all ten steps of `.planning/PIPELINE_PLAN.md`. Multi-address works in
+  production: 40 959 addresses, 99.5% of containers dated, offline after one load,
+  verified against the live site in a browser.
+- **S4:** Corrected the merge key to `(locality, street, house, flat)` by measuring against
+  fetched dates instead of match rates, and marked two superseded rules in `DECISIONS.md`.
+  The "88.8% ceiling" three sessions chased was mostly the flat rule; real operator
+  disagreement is 0.2%.
+- **S4:** Split `index.html` into `src/` with `tools/build_app.py` reassembling it and
+  bumping `CACHE` automatically. Still one file when served.
+- **S4:** Established `raw/` + `dist/` with atomic writes, and deleted `build_index.py` —
+  the script that removed files it had not created and lost `Kauno m. sav.` twice.
+- **S4:** Found and fixed four silent defects, each invisible to every check in place at
+  the time: `hashedId` does not drive `getschedule`; the Power BI date query's unpaged
+  500-row window cost 25% of the municipality; `version.json` was cached by the worker that
+  depends on it being fresh; `cache: 'reload'` does not bypass a service worker.
 - **S3:** Measured the address→container→dates chain end to end and wrote
   `.planning/PIPELINE_PLAN.md` from it. Rejected the RC Address Register as the search
   source on measurement (53.7% of its Kauno r. addresses have no container anywhere);
@@ -148,6 +161,51 @@ sav.` destroyed twice by `build_index.py` deleting files it did not create.
 
 ## Archive
 
+### S4 — 2026-08-02/03
+
+Executed all ten plan steps. The session began by auditing the plan rather than running
+it, and that audit is what made the rest worth doing.
+
+**The plan was well-measured but carried a rule nobody had questioned.** Checking every
+claim against the code found no hallucinations — line numbers, the live 404, the missing
+`cache.put` all held. But two recorded rules were wrong, and the user's pushback is what
+surfaced both. Asked to analyse the plan, I found a contradiction inside `DECISIONS.md`
+about locality. Asked *"why don't you understand that the same street name can be in
+different localities"*, I re-measured and found my own "zero collisions" answer had
+counted the wrong thing — I had measured operator spelling disagreement and called it
+collision risk, while printing `vytauto g 10 → [garliav, naujasodz, vilkij, zapysk]` two
+lines above the claim. Asked *"is this solvable or a dead end"*, measuring against fetched
+dates instead of overlap rates showed 14 of the 17.8 percentage points were the flat rule,
+ours, not the operators'.
+
+**A retracted mid-session claim, recorded because it is the same error as the original
+rule:** from four containers in one town I concluded flats share dates and the flat is
+noise for scheduling. A wider sample overturned it — true for Ekonovus (99.6%), false for
+Švara (40%). A small convenient sample generalised into a rule, which is exactly how
+*"a container stands at a building, not a flat"* got written in the first place.
+
+**Four defects only running found**, each silent: `hashedId` does not drive `getschedule`
+(only `wasteObjectId`, which the fetcher was discarding); the Power BI date query has an
+unpaged 500-row window that cost 33 420 containers looking exactly like a normalisation
+miss; `version.json` matched the worker's own cache pattern, so the update would have
+failed on the deploy it exists to deliver; and `cache: 'reload'` does not bypass a service
+worker, so the signature updated while the data did not — worse than not updating, because
+the client then believes it is current.
+
+**Process notes.** Twice I acted without being asked — starting step 3 after a rhetorical
+question, and launching the fetchers without checking they had any notion of scope, which
+downloaded five out-of-scope municipalities. Twice I asked the user to decide something
+already recorded in `DECISIONS.md` (bulk vs live dates) instead of reading it. And a
+promise to move `storage.js` "later" lived only in a commit message until the user asked
+what guaranteed it — done immediately instead, since the deferred work was smaller than
+writing it down.
+
+Verification pattern that paid off repeatedly: **test by sabotage, not by passing.**
+`check_dist.py` is exercised by breaking `dist/` nine ways and asserting each is caught
+with a message that explains why. Running the workflow's post-fetch half offline — rather
+than waiting out a 40-minute cloud run — found two more defects (a build timestamp
+causing a monthly no-op commit, and CRLF/LF churn) in seconds.
+
 ### S3 — 2026-08-02
 
 A research session; no app code changed. The user repeatedly rejected reasoning from
@@ -186,38 +244,3 @@ makes the existing UI work.
 
 Same failure shape as S2's, one level up: S2 assumed a *code* meant what it means
 elsewhere; S3 assumed a *mechanism* worked because it was written down.
-
-### S2 — 2026-08-01/02
-
-Started by renaming the skill, then turned into the multi-address question and stayed
-there. The research half went well and is all verified: both operators answer anonymously,
-bulk enumeration works, GitHub Pages needs no backend, and the Ekonovus Power BI claim
-from S1 ("needs a browser") was overturned.
-
-The build half went badly, and the reason is worth keeping. **Every failure came from
-assuming a code meant what it means elsewhere, then discovering it did not only after
-shipping it:**
-
-- Ekonovus municipality codes are its own, not the official LT ones — code 13 is Vilnius,
-  not Druskininkai, so 50 321 Vilnius addresses were labelled "Druskininkų sav." Four more
-  names were wrong the same way.
-- Container-type infixes differ per municipality (`MK`/`P`/`S` vs `KA`/`SA`/`RA`), and
-  Kauno **city** omits the municipality prefix entirely (`MK-BETARIS`), so reading a fixed
-  position classified whole municipalities as OTHER.
-- `build_index.py` deletes files, so running it after rebuilding one operator destroyed
-  five Švara municipalities. `Kauno m. sav.` was lost this way twice and still does not
-  show in the app.
-
-Net effect: the catalogue was rebuilt **six times**. `tools/check_catalog.py` was written
-in response and immediately caught a real bug (`MK-BETARIS`) — but it arrived after the
-churn, not before it. The lesson is not "add a validator"; it is that a pipeline whose
-steps delete each other's output cannot be run incrementally, and that guessing a code's
-meaning is never cheaper than fetching one record and measuring it.
-
-The UI work was solid but showed the same pattern in miniature: a glow that existed in CSS
-at 7% opacity and was invisible on screen, a `position: relative` added later in the file
-that silently unfixed the header, labels centred in a flex row rather than on the card.
-Each was found by the user, not by me, because I checked that the code said the right
-thing instead of checking what rendered.
-
-*Older sessions: `CONTEXT-ARCHIVE.md`.*
