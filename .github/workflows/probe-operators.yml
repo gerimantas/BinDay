@@ -1,0 +1,30 @@
+name: Probe operators
+
+# Throwaway connectivity check: can a GitHub runner reach both operators?
+# Answers three questions the local machine cannot:
+#   1. does Ekonovus' Power BI accept the anonymous resource key from a datacentre IP
+#   2. does Švara's seroval server function answer without a browser session
+#   3. do the dates match what the app already ships
+# Delete once answered.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Runner identity
+        run: |
+          echo "egress IP: $(curl -s --max-time 20 https://api.ipify.org || echo UNKNOWN)"
+          echo "region hint: $(curl -s --max-time 20 https://ipinfo.io/country || echo UNKNOWN)"
+
+      - name: Ekonovus — Power BI anonymous query
+        run: python3 .github/workflows/probe_ekonovus.py
+
+      - name: Švara — seroval server function
+        run: |
+          npm install seroval --no-save --silent
+          node .github/workflows/probe_svara.mjs
