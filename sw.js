@@ -1,7 +1,7 @@
 // Bump CACHE on every deploy that changes index.html, or clients keep serving
 // the stale schedule from cache indefinitely. tools/build_app.py does this
 // automatically — do not rely on remembering.
-const CACHE = 'binday-v12';
+const CACHE = 'binday-v14';
 
 // The app shell. Pre-cached on install so the app opens with no signal.
 const ASSETS = [
@@ -14,10 +14,17 @@ const ASSETS = [
 ];
 
 // Catalogue data is deliberately NOT pre-cached: dist/kauno-r-sav/data.json is
-// 4.6 MB, and downloading a municipality on install would be a long silent
+// 7.4 MB, and downloading a municipality on install would be a long silent
 // stall for a user who may never open the address picker. It is cached on first
 // use instead — see the fetch handler.
 const DATA = /\/dist\/.*\.json$/;
+
+// version.json must NEVER be cached, and must never be answered from the cache.
+// It is the signal that the cached data is out of date, so serving it
+// cache-first would mean the app compares the new build against a stale copy of
+// its own signature and concludes nothing changed — the update would never fire
+// on exactly the deploy it exists to deliver.
+const NEVER_CACHE = /\/dist\/version\.json$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -43,6 +50,15 @@ self.addEventListener('activate', e => {
 // from is gitignored and 404s.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const path = new URL(e.request.url).pathname;
+
+  // Straight to the network, never cached, and a failure stays a failure: the
+  // caller treats any error as "no signal, keep what we have".
+  if (NEVER_CACHE.test(path)) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -50,8 +66,7 @@ self.addEventListener('fetch', e => {
         // Cache only a real success. Storing an error or opaque response would
         // pin a 404 into the cache, and cache-first would then serve it forever
         // — the failure mode that makes a fixed deploy look broken.
-        if (res.ok && res.type === 'basic' &&
-            DATA.test(new URL(e.request.url).pathname)) {
+        if (res.ok && res.type === 'basic' && DATA.test(path)) {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy));
         }
