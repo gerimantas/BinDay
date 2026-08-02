@@ -985,29 +985,16 @@ function downloadICS(entries) {
    of the hero saying "tomorrow" while a row says "today" after a midnight tick. */
 function refresh() { render(new Date()); }
 
-/* ===== catalog.js ===== */
+/* ===== storage.js ===== */
 /* ------------------------------------------------------------------
-   Settings — saved addresses, catalogue lookup, geolocation
+   Saved addresses in localStorage.
 
-   The catalogue is fetched from data/catalog/ as static JSON. Only
-   municipalities served by BOTH operators ship data; a single-operator
-   area would show packaging without mixed waste (or the reverse), and a
-   schedule that silently omits a bin is worse than none. Those areas are
-   listed as `pending` and the app says so.
+   Both accessors swallow their errors on purpose. Storage is unavailable in
+   private mode and can hold corrupt JSON from an older build; neither is worth
+   breaking the app for, because the schedule still renders from the shipped
+   default without it.
 ------------------------------------------------------------------ */
 const STORE = 'binday.addresses';
-const CATALOG = 'data/catalog/';
-const TYPE_META = {
-  MIXED:     { label: 'Mišrios',  emoji: '🔴', color: 'red' },
-  PACKAGING: { label: 'Pakuotės', emoji: '🟡', color: 'gold' },
-  GLASS:     { label: 'Stiklas',  emoji: '🟢', color: 'springgreen' },
-  GREEN:     { label: 'Žaliosios', emoji: '🟤', color: 'olivedrab' },
-  PAPER:     { label: 'Popierius', emoji: '🔵', color: 'deepskyblue' },
-  OTHER:     { label: 'Kita',     emoji: '⚪', color: 'gainsboro' }
-};
-
-let areasIndex = null;              // areas.json
-const areaCache = new Map();        // file -> entries[]
 
 function loadSaved() {
   try {
@@ -1021,6 +1008,29 @@ function persist(state) {
   catch (e) { /* private mode: the app still works for this session */ }
 }
 let saved = loadSaved();
+
+/* ===== catalog.js ===== */
+/* ------------------------------------------------------------------
+   Settings — saved addresses, catalogue lookup, geolocation
+
+   The catalogue is fetched from data/catalog/ as static JSON. Only
+   municipalities served by BOTH operators ship data; a single-operator
+   area would show packaging without mixed waste (or the reverse), and a
+   schedule that silently omits a bin is worse than none. Those areas are
+   listed as `pending` and the app says so.
+------------------------------------------------------------------ */
+const CATALOG = 'data/catalog/';
+const TYPE_META = {
+  MIXED:     { label: 'Mišrios',  emoji: '🔴', color: 'red' },
+  PACKAGING: { label: 'Pakuotės', emoji: '🟡', color: 'gold' },
+  GLASS:     { label: 'Stiklas',  emoji: '🟢', color: 'springgreen' },
+  GREEN:     { label: 'Žaliosios', emoji: '🟤', color: 'olivedrab' },
+  PAPER:     { label: 'Popierius', emoji: '🔵', color: 'deepskyblue' },
+  OTHER:     { label: 'Kita',     emoji: '⚪', color: 'gainsboro' }
+};
+
+let areasIndex = null;              // areas.json
+const areaCache = new Map();        // file -> entries[]
 
 async function getIndex() {
   if (!areasIndex) {

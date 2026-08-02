@@ -7,7 +7,6 @@
    schedule that silently omits a bin is worse than none. Those areas are
    listed as `pending` and the app says so.
 ------------------------------------------------------------------ */
-const STORE = 'binday.addresses';
 const CATALOG = 'data/catalog/';
 const TYPE_META = {
   MIXED:     { label: 'Mišrios',  emoji: '🔴', color: 'red' },
@@ -20,19 +19,6 @@ const TYPE_META = {
 
 let areasIndex = null;              // areas.json
 const areaCache = new Map();        // file -> entries[]
-
-function loadSaved() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORE) || 'null');
-    if (raw && Array.isArray(raw.list)) return raw;
-  } catch (e) { /* corrupt or unavailable storage — fall through to the default */ }
-  return { active: 0, list: [] };
-}
-function persist(state) {
-  try { localStorage.setItem(STORE, JSON.stringify(state)); }
-  catch (e) { /* private mode: the app still works for this session */ }
-}
-let saved = loadSaved();
 
 async function getIndex() {
   if (!areasIndex) {

@@ -36,7 +36,8 @@ ORDER = [
     "calendar.js",   # buildCalendar
     "render.js",     # expanded flag, render
     "ics.js",        # icsEscape, fold, stamp, buildICS, downloadICS, refresh
-    "catalog.js",    # STORE, CATALOG, TYPE_META, loadSaved, persist, getIndex, getArea
+    "storage.js",    # STORE, loadSaved, persist, saved
+    "catalog.js",    # CATALOG, TYPE_META, getIndex, getArea
     "search.js",     # normalise, tokens, addressKey, searchAddresses, typeDots
     "settings.js",   # the sheet: renderSaved, fillAreas, doSearch, locate, applyActive
     "main.js",       # listeners and startup only
