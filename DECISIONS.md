@@ -2,6 +2,141 @@
 
 Architectural decisions and what was rejected, with the reasoning. Newest first.
 
+## 2026-08-02 (S4) — The merge key is (locality, street, house, FLAT). Two earlier entries are superseded
+
+Measured against **fetched pickup dates**, not against match rates. That distinction is the
+whole finding: an overlap percentage cannot tell a lost duplicate from a wrong schedule, so
+optimising it kept three sessions busy on a rule that was itself the defect.
+
+Data: 16 093 Ekonovus containers across 51 adversarially-selected localities, plus 103 Švara
+address→schedule pairs, plus direct API probes. Selection was deliberately biased toward
+multi-flat buildings, locality disagreements and street+house collisions — a uniform sample
+hides all three.
+
+### This supersedes: "merge on street+house, locality is a display label only"
+
+The entry *"2026-08-02 — Address list comes from the operator catalogues"* ends with:
+
+> **Consequence for the UI:** locality cannot be treated as a reliable key across operators.
+> Merge on street+house within a municipality, and keep locality as a display label only.
+
+**That conclusion is wrong and must not be acted on.** It was drawn from a normalisation
+statistic (ignoring locality raises overlap 88.8% → 90.9%) without checking what the fused
+addresses actually collect.
+
+| | |
+|---|---|
+| street+house keys existing in >1 locality (Kauno r.) | **5 085** (20.9% of all) |
+| containers behind them | **60 966 of 132 260 (46.1%)** |
+| addresses destroyed by dropping locality | **11 375** |
+| of 1 442 tested, share with **different dates** per locality | **1 406 (97.5%)** |
+| Švara MIXED, same test | **12 of 12 (100%)** |
+
+```
+gėlių g. 1 [PACKAGING]        saulės g. 5 [MIXED, Švara]
+  Akuotų k.      08-21          Didvyrių k.     06-10
+  Dievogalos k.  08-18          Domeikavos k.   06-11
+  Dubravų k.     08-07          Dubravų k.      06-12
+```
+
+The 2.1% overlap gain was not duplicates merging — it was houses 20 km apart being handed
+each other's schedules. The other entry in this file, *"the merge key is (locality, street,
+house), all three required"*, is the correct one; its cited evidence (51 Vytauto g.
+collisions between Garliava and Zapyškis) understated the real figure by two orders of
+magnitude.
+
+### This supersedes: "a container stands at a building, not at a flat"
+
+Recorded twice — *"Flat numbers collapse into the building on purpose"* and *"Collapse flat
+numbers to the building (`31-1` → `31`) — worth 8–14%, loses nothing"*. **It loses schedules.**
+
+Every one of the **3 746** multi-flat buildings in the catalogue gives each flat its **own
+container id** — 0 shared, at both operators. Most flats share a schedule; a minority do not:
+
+| operator | multi-flat groups compared | dates DIFFER between flats |
+|---|---|---|
+| Švara (MIXED) | 20 buildings | **12 (60%)** |
+| Ekonovus (GLASS/PACKAGING) | 969 building+type groups | 4 (0.4%) |
+
+```
+Girininkų II k. Vėjo g. 12 [Švara]      Biruliškių k. Pastotės g. 7 [Ekonovus GLASS]
+  flat 1: 80 dates — weekly               flats 1,2,3,5,6: 5 dates/year
+  flat 2: 40 dates — fortnightly          flat 4:         12 dates/year
+```
+
+Collapsing shows a resident their neighbour's schedule; in the Pastotės case they would miss
+more than half their pickups. Keep a building-level **fallback for lookup only** — 22 of 500
+sampled addresses exist at Švara as a building while Ekonovus splits them into flats, and 4
+the reverse.
+
+**The flat rule was also the main source of the "88.8% ceiling"** three sessions tried to
+raise. Decomposing the mismatch in a 500-address sample:
+
+| source | share | affects dates? |
+|---|---|---|
+| flat dropped (our own rule) | **14.0%** | no — but produces wrong container/schedule |
+| genuine service split | 3.6% | yes |
+| operator disagreement about locality | **0.2%** | yes |
+| street spelling | 0.2% | yes |
+
+Real operator incompatibility is ~0.2% — one address in 500. The rest we created.
+
+### Rejected before implementing: "merge two entries when their waste streams are disjoint"
+
+Proposed this session to recover the ~44 addresses where operators genuinely disagree about
+the locality (`Jonučių k.` vs `Garliavos m.`). **Measured: it would wrongly fuse 255 locality
+pairs**, e.g. `Saulėtekio g. 10` in Akademija (GREEN only) with the same street and number in
+Domeikava (GLASS+MIXED+PACKAGING). Disjoint streams mean "one side only has a green bin", not
+"same property". Those ~44 stay unmatched; that is the honest answer.
+
+### Švara also serves a plausible wrong answer — `getcontracts` filters are `Contains`
+
+`CLAUDE.md` warns about Ekonovus. Švara has the same class of trap by a different mechanism:
+**every `getcontracts` field is a substring match, not equality.**
+
+| sent | returned |
+|---|---|
+| `houseNumber=8` | `8`, `8A`, `38`, `18` |
+| `Žalgirio g.` + `8A`, no `city` | `Žalgirio g. 8A` Juragiuose **and** `Žalgirio g. 28A` Ringauduose |
+| `Saulės g.` + `5`, no `city` | 45 rows, **20 not house 5** (`15-1`, `35`, `15C`, `3-5`), 16 localities |
+
+`Saulės g. 3-5` matches because the *flat* contains `5`. Rules that follow:
+
+- **Send all five fields.** With `region`+`subDistrict`+`city`+`address`+`houseNumber` all
+  present: 103/103 probes returned the requested locality, 0 wrong rows.
+- **Verify the returned `fullAddress`** before using a row. The filter cannot be trusted to
+  have narrowed anything.
+- Full-but-wrong fields are safe: a wrong `city` returns `totalRecords: 0`, never a
+  substitute. Omitting `region` also returns 0.
+
+**`getschedule` is safe**: nonexistent, zero, negative, empty, and *neighbouring*
+`wasteObjectId` all return an empty schedule, never another container's dates (6/6). All risk
+in the Švara chain is in `getcontracts`. Paging is correct (45 = 20+20+5, no duplicates) and
+`pageSize=1000` returns all 45 at once, so paging can be skipped.
+
+### Schedules are a small shared set; a locality is not one schedule
+
+16 093 containers → **119 distinct date sets**: GLASS 68, PACKAGING 23, OTHER 23, MIXED 3,
+PAPER 2. The Juragiai observation (335 containers → 2 schedules) holds at scale, so a
+schedule is stored once and addresses reference it.
+
+But **106 (locality, waste-type) pairs carry more than one schedule** — Domeikava and
+Ringaudai have 8 distinct glass schedules each. The reference must be per address+type; it
+cannot be derived from the locality.
+
+### Also corrected
+
+- **36 348 addresses** was computed with the flat collapsed. It is no longer an acceptance
+  target — the new key necessarily yields more (4 813 Švara + 10 373 Ekonovus rows carry a
+  flat). Recompute and record; do not treat the change as a regression.
+- **`0.06 MB` / `0.60 MB` gzipped index sizes** appear nowhere in this file despite being
+  stated as measured in the plan. Švara's Kauno r. address strings *alone* gzip to 0.14 MB.
+  Measure before quoting.
+- **Mid-session self-correction:** from 4 containers in one town I concluded "flats share
+  dates, so the flat is noise for scheduling". A wider sample overturned it — true for
+  Ekonovus (99.6%), false for Švara (40%). Recorded because it is the same error as the
+  original flat rule: a small convenient sample generalised into a rule.
+
 ## 2026-08-02 — Neither operator rate-limits; Ekonovus slows per query size, not per request rate
 
 Tested before writing the refresh, because a hidden limit would make a scheduled build
@@ -110,6 +245,12 @@ only, 1 721 Ekonovus only.
 `32-2` become one entry holding all their containers. 3 340 addresses merge this way; they
 are the intended result, not label conflicts.
 
+> **SUPERSEDED 2026-08-02 (S4).** All 3 746 multi-flat buildings give each flat its *own*
+> container id, at both operators. 60% of Švara multi-flat buildings have different dates per
+> flat (Ekonovus 0.4%) — e.g. `Vėjo g. 12` flat 1 weekly vs flat 2 fortnightly. Those 3 340
+> "intended" merges hand residents their neighbour's schedule. Flat stays in the key; keep a
+> building-level fallback for lookup only. See the S4 entry at the top.
+
 ## 2026-08-02 — The address list comes from the operator catalogues; the register is not used
 
 Address search is built by merging the two operator catalogues directly. The RC Address
@@ -155,6 +296,12 @@ Ekonovus-only entries. The rest are genuine: each operator serves houses the oth
 **Consequence for the UI:** locality cannot be treated as a reliable key across operators.
 Merge on street+house within a municipality, and keep locality as a display label only.
 
+> **SUPERSEDED 2026-08-02 (S4) — do not act on the paragraph above.** Merging on street+house
+> destroys 11 375 Kauno r. addresses and mixes 46% of all containers: 1 406 of 1 442 tested
+> street+house keys have *different pickup dates* per locality (Švara: 12 of 12). The 90.9%
+> figure counted houses 20 km apart as matches. Locality stays in the key. See the S4 entry
+> at the top of this file.
+
 ## 2026-08-02 — Address ↔ container is joined on text; there is no shared key
 
 Verified, not assumed: **neither operator carries any Address Register identifier.** A full
@@ -175,6 +322,10 @@ Four normalisation rules earn this, and each was derived from real misses:
 
 1. **Collapse flat numbers to the building** (`31-1` → `31`) — worth 8–14%, loses nothing,
    because a container stands at a building, not a flat.
+   > **SUPERSEDED 2026-08-02 (S4): it does lose something — the schedule.** Each flat has its
+   > own container at both operators, and 60% of Švara multi-flat buildings have different
+   > dates per flat. This rule also produced 14.0 of the 17.8 percentage points of apparent
+   > operator mismatch that later sessions tried to normalise away. See the S4 entry at the top.
 2. **Collapse a full first name to an initial** (`Povilo Matulionio g.` →
    `p. matulionio g.`) — the register stores 111 Kauno r. streets with an initial while
    Ekonovus writes the name out.
@@ -298,6 +449,11 @@ architectural one.
 
 **Flat numbers are dropped deliberately.** A container stands at a building, not at a flat,
 so street + house number is the whole key. This is what earns the 8%.
+
+> **SUPERSEDED 2026-08-02 (S4).** The premise is false in this data: every multi-flat building
+> gives each flat its own container id, and 60% of Švara multi-flat buildings have different
+> dates per flat. The key is `(locality, street, house, flat)` — all four. See the S4 entry at
+> the top.
 
 **The user picks a municipality first, then types a street.** The register is far too large
 to ship whole (57 MB CSV alone); one municipality compresses to roughly 1–2 MB, matching how

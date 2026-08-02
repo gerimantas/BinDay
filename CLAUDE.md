@@ -72,9 +72,31 @@ is **not** a frontend change: no operator endpoint sends `Access-Control-Allow-O
 behind `/_serverFn/`, and Ekonovus lives in a Power BI embed needing a real browser. Any
 self-service address lookup requires a backend proxy. Don't start it as a UI task.
 
-Ekonovus also serves a **valid-looking wrong answer** when a slicer fails to apply — a
-complete schedule for an unrelated container in another municipality, with no error. Always
-read the address back before trusting dates.
+## Both operators serve valid-looking wrong answers
+
+Ekonovus serves a **valid-looking wrong answer** when a slicer fails to apply — a complete
+schedule for an unrelated container in another municipality, with no error.
+
+**Švara does the same by a different mechanism: every `getcontracts` field is a `Contains`
+match, not equality.** `houseNumber=5` returns `15-1`, `35`, `15C` and `3-5` (the last
+because the *flat* contains a 5). Asking for `Žalgirio g. 8A` without a locality also returns
+`Žalgirio g. 28A` in another village. Send all five fields (`region`, `subDistrict`, `city`,
+`address`, `houseNumber`) and **always read the returned `fullAddress` back** before trusting
+dates. With all five present it is exact (103/103 probes). `getschedule` is safe — a wrong or
+neighbouring `wasteObjectId` returns empty, never another container's dates.
+
+## The address key is (locality, street, house, flat) — all four
+
+Measured against fetched dates, not match rates. Dropping **locality** gives another
+village's schedule: of 1 442 street+house keys present in several localities, 1 406 (97.5%)
+have different dates. Dropping the **flat** gives the neighbour's schedule: every multi-flat
+building assigns each flat its own container, and 60% of Švara multi-flat buildings have
+different dates per flat.
+
+Earlier notes said the opposite for both ("merge on street+house, locality is a display
+label"; "a container stands at a building, not a flat"). Those are superseded and marked as
+such in `DECISIONS.md`. An overlap percentage cannot distinguish a merged duplicate from a
+wrong schedule — verify key changes against dates.
 
 ## Language
 
