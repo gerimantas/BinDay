@@ -1,13 +1,17 @@
 /* ------------------------------------------------------------------
-   Settings — saved addresses, catalogue lookup, geolocation
+   Catalogue lookup — fetched from dist/ as static JSON.
 
-   The catalogue is fetched from data/catalog/ as static JSON. Only
-   municipalities served by BOTH operators ship data; a single-operator
-   area would show packaging without mixed waste (or the reverse), and a
-   schedule that silently omits a bin is worse than none. Those areas are
-   listed as `pending` and the app says so.
+   dist/ is built by tools/build_dist.py and gated by tools/check_dist.py.
+   Addresses are already merged there on (locality, street, house, flat), so
+   nothing is grouped at runtime: a key in data.json is one property carrying
+   every container both operators serve at it.
+
+   The old data/catalog/ layout shipped whole operator catalogues and grouped
+   them in the browser. It also 404'd in production, because the directory is
+   gitignored — the picker could never load at all.
 ------------------------------------------------------------------ */
-const CATALOG = 'data/catalog/';
+const DIST = 'dist/';
+
 const TYPE_META = {
   MIXED:     { label: 'Mišrios',  emoji: '🔴', color: 'red' },
   PACKAGING: { label: 'Pakuotės', emoji: '🟡', color: 'gold' },
@@ -17,30 +21,46 @@ const TYPE_META = {
   OTHER:     { label: 'Kita',     emoji: '⚪', color: 'gainsboro' }
 };
 
-let areasIndex = null;              // areas.json
-const areaCache = new Map();        // file -> entries[]
+let areasIndex = null;              // dist/areas.json
+const areaCache = new Map();        // slug -> {operators, addresses}
+
+async function getJSON(path) {
+  const r = await fetch(DIST + path);
+  if (!r.ok) throw new Error(path + ' ' + r.status);
+  return r.json();
+}
 
 async function getIndex() {
-  if (!areasIndex) {
-    const r = await fetch(CATALOG + 'areas.json');
-    if (!r.ok) throw new Error('index ' + r.status);
-    areasIndex = await r.json();
-  }
+  if (!areasIndex) areasIndex = await getJSON('areas.json');
   return areasIndex;
 }
 
-async function getArea(files) {
-  const out = [];
-  for (const f of files) {
-    if (!areaCache.has(f.file)) {
-      const r = await fetch(CATALOG + f.file);
-      if (!r.ok) throw new Error(f.file + ' ' + r.status);
-      areaCache.set(f.file, (await r.json()).entries);
+/* An area's addresses, as rows the search can filter.
+
+   Each container is stored as [id, type, operatorIndex] against the area's own
+   `operators` list — repeating the key names for 133 000 containers cost more
+   than the data itself. Expanded here, once per area, rather than in the file. */
+async function getArea(slug) {
+  if (!areaCache.has(slug)) {
+    const d = await getJSON(slug + '/data.json');
+    const ops = d.operators || [];
+    const labels = d.labels || {};
+    const rows = [];
+    for (const [key, containers] of Object.entries(d.addresses || {})) {
+      const [locality, street, house, flat] = key.split('|');
+      rows.push({
+        key,
+        locality, street, house, flat: flat || null,
+        // The operator's own spelling, carried through the build. The key is
+        // normalised for matching and reads as "jurag|zalgirio g|8a|".
+        address: labels[key] || `${street} ${house}, ${locality}`,
+        containers: containers.map(c => ({
+          id: c[0], type: c[1], operator: ops[c[2]] || '?'
+        }))
+      });
     }
-    for (const e of areaCache.get(f.file)) {
-      out.push({ address: e[0], id: e[1], type: e[2], hashedId: e[3] || null,
-                 operator: f.operator });
-    }
+    areaCache.set(slug, rows);
   }
-  return out;
+  return areaCache.get(slug);
 }
+

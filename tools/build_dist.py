@@ -27,6 +27,7 @@ shape.
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -63,7 +64,13 @@ AREAS = {
 
 
 def load_source(parser_name, operator, path):
-    """-> (rows, stats). rows: [(key, container_id, waste_type, operator)]"""
+    """-> (rows, stats). rows: [(key, container_id, waste_type, operator, raw)]
+
+    `raw` is the operator's own address string. The key is normalised for
+    matching — accents stripped, case endings dropped — so "Juragių k." becomes
+    "jurag", which is unreadable. The user must be shown a real address, so one
+    original spelling is carried through and used as the label.
+    """
     if not os.path.exists(path):
         return [], {"missing": True}
     parse = PARSERS[parser_name]
@@ -74,7 +81,7 @@ def load_source(parser_name, operator, path):
         if not key:
             unparsed += 1
             continue
-        rows.append((key, str(e[1]).strip(), e[2], operator))
+        rows.append((key, str(e[1]).strip(), e[2], operator, str(e[0]).strip()))
     return rows, {
         "file": path,
         "declared": d.get("count"),
@@ -82,6 +89,18 @@ def load_source(parser_name, operator, path):
         "unparsed": unparsed,
         "fetched_at": (read_meta(path) or {}).get("fetched_at"),
     }
+
+
+TAIL = re.compile(r",\s*[^,]*\bsen\.[^,]*$")
+
+
+def trim_tail(label):
+    """Drop the seniūnija/savivaldybė tail: it is identical on every row.
+
+    "Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav."
+    -> "Žalgirio g. 8A, Juragių k."
+    """
+    return TAIL.sub("", label).strip().rstrip(",")
 
 
 def build_area(slug, spec):
@@ -106,8 +125,14 @@ def build_area(slug, spec):
     ops = [op for _p, op, _f in spec["sources"]]
     op_index = {op: i for i, op in enumerate(ops)}
     by_key = defaultdict(list)
-    for key, cid, wtype, operator in rows:
+    labels = {}
+    for key, cid, wtype, operator, raw in rows:
         by_key[key].append([cid, wtype, op_index[operator]])
+        # Prefer the fullest spelling as the label the user sees: Švara writes
+        # "Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav."
+        # and Ekonovus "Juragių k. Žalgirio g. 8A". Longest wins.
+        if key not in labels or len(raw) > len(labels[key]):
+            labels[key] = raw
 
     # Search index: locality -> street -> [house numbers]. Flats are kept as
     # distinct entries because they can carry different schedules, so the index
@@ -123,6 +148,12 @@ def build_area(slug, spec):
     data = {
         "operators": ops,
         "addresses": {key_str(k): by_key[k] for k in sorted(by_key, key=key_str)},
+        # The administrative tail is dropped here rather than in the browser:
+        # ", Garliavos apylinkių sen. Kauno r. sav." repeats on all 40 960 rows
+        # and the app trims it for display anyway, so shipping it costs 1.2 MB
+        # to be thrown away on arrival.
+        "labels": {key_str(k): trim_tail(labels[k])
+                   for k in sorted(by_key, key=key_str)},
     }
     index_out = {loc: {st: sorted(hs) for st, hs in sorted(streets.items())}
                  for loc, streets in sorted(index.items())}

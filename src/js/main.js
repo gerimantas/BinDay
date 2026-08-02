@@ -16,10 +16,11 @@ async function fillDataInfo() {
   const el = $('dataInfo');
   try {
     const idx = await getIndex();
-    const names = idx.shipped.map(a => a.municipality).join(', ');
-    el.textContent = `Duomenys surinkti ${idx.generated}. Veikia: ${names}. `
-      + `Kitos savivaldybės ruošiamos — jose kol kas veža tik vienas vežėjas, `
-      + `tad grafikas būtų nepilnas.`;
+    const names = idx.areas.map(a => a.municipality).join(', ');
+    const total = idx.areas.reduce((n, a) => n + (a.addresses || 0), 0);
+    el.textContent = `Duomenys surinkti ${idx.generated}. Veikia: ${names} `
+      + `(${total.toLocaleString('lt-LT')} adresų). `
+      + `Kitos savivaldybės dar neįkeltos.`;
   } catch (e) {
     el.textContent = 'Nepavyko įkelti informacijos.';
   }

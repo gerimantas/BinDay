@@ -28,28 +28,26 @@ function addressKey(s) {
   return key.join(' ');
 }
 
+/* Rows arrive already merged on (locality, street, house, flat) — the build did
+   the grouping, so one row is one property carrying every container both
+   operators serve at it. This only filters and ranks.
+
+   Flats are separate rows on purpose and must stay separate here: 60% of Švara
+   multi-flat buildings have a different schedule per flat, so offering one row
+   for the building would hand a resident the neighbour's dates. */
 function searchAddresses(entries, query, limit = 12) {
   const q = tokens(query);
   if (!q.length) return [];
-  const groups = new Map();
+  const hits = [];
   for (const e of entries) {
     const hay = normalise(e.address);
     if (!q.every(t => hay.includes(t))) continue;
-    const key = addressKey(e.address);
-    if (!groups.has(key)) groups.set(key, { labels: [], containers: [] });
-    const g = groups.get(key);
-    g.labels.push(e.address);
-    g.containers.push(e);
-    if (groups.size > limit * 4) break;
+    hits.push(e);
+    if (hits.length > limit * 8) break;
   }
-  return [...groups.values()]
-    // Prefer the operator's fullest wording as the label the user sees.
-    .map(g => ({
-      address: g.labels.slice().sort((a, b) => b.length - a.length)[0],
-      containers: g.containers
-    }))
-    /* Rank an exact house-number match first: a search for "8A" otherwise puts
-       "28A" above it, because "8a" is a substring of "28a". */
+  /* Rank an exact house-number match first: a search for "8A" otherwise puts
+     "28A" above it, because "8a" is a substring of "28a". */
+  return hits
     .sort((a, b) => exactness(b, q) - exactness(a, q) || a.address.length - b.address.length)
     .slice(0, limit);
 }

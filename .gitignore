@@ -2,10 +2,6 @@ node_modules/
 __pycache__/
 *.pyc
 
-# The old single-directory catalogue, superseded by data/raw/ + dist/. Kept ignored
-# until the new pipeline replaces every consumer of it; delete the directory then.
-data/catalog/
-
 # Fetch output. Stays out of git: it is large, it is restored by re-fetching from the
 # operators, and nothing derives from git history here. dist/ IS committed — it is
 # regenerated from raw/ in seconds, gated by the checker, and it is the only way GitHub

@@ -1011,15 +1011,19 @@ let saved = loadSaved();
 
 /* ===== catalog.js ===== */
 /* ------------------------------------------------------------------
-   Settings — saved addresses, catalogue lookup, geolocation
+   Catalogue lookup — fetched from dist/ as static JSON.
 
-   The catalogue is fetched from data/catalog/ as static JSON. Only
-   municipalities served by BOTH operators ship data; a single-operator
-   area would show packaging without mixed waste (or the reverse), and a
-   schedule that silently omits a bin is worse than none. Those areas are
-   listed as `pending` and the app says so.
+   dist/ is built by tools/build_dist.py and gated by tools/check_dist.py.
+   Addresses are already merged there on (locality, street, house, flat), so
+   nothing is grouped at runtime: a key in data.json is one property carrying
+   every container both operators serve at it.
+
+   The old data/catalog/ layout shipped whole operator catalogues and grouped
+   them in the browser. It also 404'd in production, because the directory is
+   gitignored — the picker could never load at all.
 ------------------------------------------------------------------ */
-const CATALOG = 'data/catalog/';
+const DIST = 'dist/';
+
 const TYPE_META = {
   MIXED:     { label: 'Mišrios',  emoji: '🔴', color: 'red' },
   PACKAGING: { label: 'Pakuotės', emoji: '🟡', color: 'gold' },
@@ -1029,32 +1033,47 @@ const TYPE_META = {
   OTHER:     { label: 'Kita',     emoji: '⚪', color: 'gainsboro' }
 };
 
-let areasIndex = null;              // areas.json
-const areaCache = new Map();        // file -> entries[]
+let areasIndex = null;              // dist/areas.json
+const areaCache = new Map();        // slug -> {operators, addresses}
+
+async function getJSON(path) {
+  const r = await fetch(DIST + path);
+  if (!r.ok) throw new Error(path + ' ' + r.status);
+  return r.json();
+}
 
 async function getIndex() {
-  if (!areasIndex) {
-    const r = await fetch(CATALOG + 'areas.json');
-    if (!r.ok) throw new Error('index ' + r.status);
-    areasIndex = await r.json();
-  }
+  if (!areasIndex) areasIndex = await getJSON('areas.json');
   return areasIndex;
 }
 
-async function getArea(files) {
-  const out = [];
-  for (const f of files) {
-    if (!areaCache.has(f.file)) {
-      const r = await fetch(CATALOG + f.file);
-      if (!r.ok) throw new Error(f.file + ' ' + r.status);
-      areaCache.set(f.file, (await r.json()).entries);
+/* An area's addresses, as rows the search can filter.
+
+   Each container is stored as [id, type, operatorIndex] against the area's own
+   `operators` list — repeating the key names for 133 000 containers cost more
+   than the data itself. Expanded here, once per area, rather than in the file. */
+async function getArea(slug) {
+  if (!areaCache.has(slug)) {
+    const d = await getJSON(slug + '/data.json');
+    const ops = d.operators || [];
+    const labels = d.labels || {};
+    const rows = [];
+    for (const [key, containers] of Object.entries(d.addresses || {})) {
+      const [locality, street, house, flat] = key.split('|');
+      rows.push({
+        key,
+        locality, street, house, flat: flat || null,
+        // The operator's own spelling, carried through the build. The key is
+        // normalised for matching and reads as "jurag|zalgirio g|8a|".
+        address: labels[key] || `${street} ${house}, ${locality}`,
+        containers: containers.map(c => ({
+          id: c[0], type: c[1], operator: ops[c[2]] || '?'
+        }))
+      });
     }
-    for (const e of areaCache.get(f.file)) {
-      out.push({ address: e[0], id: e[1], type: e[2], hashedId: e[3] || null,
-                 operator: f.operator });
-    }
+    areaCache.set(slug, rows);
   }
-  return out;
+  return areaCache.get(slug);
 }
 
 /* ===== search.js ===== */
@@ -1088,28 +1107,26 @@ function addressKey(s) {
   return key.join(' ');
 }
 
+/* Rows arrive already merged on (locality, street, house, flat) — the build did
+   the grouping, so one row is one property carrying every container both
+   operators serve at it. This only filters and ranks.
+
+   Flats are separate rows on purpose and must stay separate here: 60% of Švara
+   multi-flat buildings have a different schedule per flat, so offering one row
+   for the building would hand a resident the neighbour's dates. */
 function searchAddresses(entries, query, limit = 12) {
   const q = tokens(query);
   if (!q.length) return [];
-  const groups = new Map();
+  const hits = [];
   for (const e of entries) {
     const hay = normalise(e.address);
     if (!q.every(t => hay.includes(t))) continue;
-    const key = addressKey(e.address);
-    if (!groups.has(key)) groups.set(key, { labels: [], containers: [] });
-    const g = groups.get(key);
-    g.labels.push(e.address);
-    g.containers.push(e);
-    if (groups.size > limit * 4) break;
+    hits.push(e);
+    if (hits.length > limit * 8) break;
   }
-  return [...groups.values()]
-    // Prefer the operator's fullest wording as the label the user sees.
-    .map(g => ({
-      address: g.labels.slice().sort((a, b) => b.length - a.length)[0],
-      containers: g.containers
-    }))
-    /* Rank an exact house-number match first: a search for "8A" otherwise puts
-       "28A" above it, because "8a" is a substring of "28a". */
+  /* Rank an exact house-number match first: a search for "8A" otherwise puts
+     "28A" above it, because "8a" is a substring of "28a". */
+  return hits
     .sort((a, b) => exactness(b, q) - exactness(a, q) || a.address.length - b.address.length)
     .slice(0, limit);
 }
@@ -1239,52 +1256,39 @@ async function fillAreas() {
     return d;
   };
 
-  for (const a of idx.shipped) addOption(a.municipality, a.municipality, false);
+  /* dist/areas.json lists only what was actually built and passed the publish
+     gate — it is derived from files on disk, never declared ahead of them. The
+     old index declared 22 municipalities of which 3 existed, and every step
+     downstream believed it. So there is no "pending" list to render here: an
+     area is either present with data or absent. */
+  for (const a of idx.areas) addOption(a.slug, a.municipality, false);
 
-  if (idx.pending.length) {
-    const g = document.createElement('div');
-    g.className = 'grp';
-    g.textContent = 'Ruošiama — duomenų dar nėra';
-    menu.appendChild(g);
-    for (const a of idx.pending) {
-      addOption('!' + a.municipality, a.municipality, true);
-    }
-  }
-
-  const first = idx.shipped[0];
+  const first = idx.areas[0];
   if (first) {
-    areaValue = first.municipality;
+    areaValue = first.slug;
     $('areaVal').textContent = first.municipality;
   }
 }
 
-function pendingNotice(name) {
-  const box = $('suggest');
-  box.innerHTML = '';
-  const d = document.createElement('div');
-  d.className = 'notice';
-  d.textContent = name + ' — duomenys ruošiami. Šioje savivaldybėje veikia tik vienas '
-    + 'vežėjas, tad grafikas būtų nepilnas: trūktų dalies konteinerių. Kol to nepataisysime, '
-    + 'geriau nerodyti nieko, nei rodyti pusę.';
-  box.appendChild(d);
-}
+/* pendingNotice() is gone with the "pending" list. dist/areas.json is derived
+   from what was built and gated, so an area is either there with data or not
+   listed at all — there is nothing to warn about mid-picker. */
 
 let searchTimer = null;
 async function doSearch() {
   const area = areaValue;
   const q = $('q').value.trim();
   const box = $('suggest');
-  if (area.startsWith('!')) { pendingNotice(area.slice(1)); return; }
   if (q.length < 3) { box.innerHTML = ''; return; }
 
   const idx = await getIndex();
-  const entry = idx.shipped.find(a => a.municipality === area);
+  const entry = idx.areas.find(a => a.slug === area);
   if (!entry) { box.innerHTML = ''; return; }
 
   box.innerHTML = '<div class="none">Ieškoma…</div>';
   let hits;
   try {
-    hits = searchAddresses(await getArea(entry.files), q);
+    hits = searchAddresses(await getArea(entry.slug), q);
   } catch (e) {
     box.innerHTML = '<div class="none">Nepavyko įkelti duomenų.</div>';
     return;
@@ -1313,13 +1317,22 @@ async function doSearch() {
 }
 
 function addAddress(hit) {
-  if (saved.list.some(a => a.address === hit.address)) {
-    saved.active = saved.list.findIndex(a => a.address === hit.address);
+  /* Stored by key, not by display string. The key is what dist/ is indexed on,
+     so a saved address can be re-resolved after a rebuild — the label may
+     change spelling, the key does not. Entries saved before this shipped have
+     no `key` and are matched on address instead, so they keep working until
+     they are re-picked. */
+  const at = saved.list.findIndex(
+    a => (a.key && a.key === hit.key) || (!a.key && a.address === hit.address));
+  if (at >= 0) {
+    saved.active = at;
   } else {
     saved.list.push({
+      key: hit.key,
+      area: areaValue,
       address: hit.address,
       containers: hit.containers.map(c => ({ id: c.id, type: c.type,
-                                             operator: c.operator, hashedId: c.hashedId }))
+                                             operator: c.operator }))
     });
     saved.active = saved.list.length - 1;
   }
@@ -1434,10 +1447,11 @@ async function fillDataInfo() {
   const el = $('dataInfo');
   try {
     const idx = await getIndex();
-    const names = idx.shipped.map(a => a.municipality).join(', ');
-    el.textContent = `Duomenys surinkti ${idx.generated}. Veikia: ${names}. `
-      + `Kitos savivaldybės ruošiamos — jose kol kas veža tik vienas vežėjas, `
-      + `tad grafikas būtų nepilnas.`;
+    const names = idx.areas.map(a => a.municipality).join(', ');
+    const total = idx.areas.reduce((n, a) => n + (a.addresses || 0), 0);
+    el.textContent = `Duomenys surinkti ${idx.generated}. Veikia: ${names} `
+      + `(${total.toLocaleString('lt-LT')} adresų). `
+      + `Kitos savivaldybės dar neįkeltos.`;
   } catch (e) {
     el.textContent = 'Nepavyko įkelti informacijos.';
   }

@@ -86,52 +86,39 @@ async function fillAreas() {
     return d;
   };
 
-  for (const a of idx.shipped) addOption(a.municipality, a.municipality, false);
+  /* dist/areas.json lists only what was actually built and passed the publish
+     gate — it is derived from files on disk, never declared ahead of them. The
+     old index declared 22 municipalities of which 3 existed, and every step
+     downstream believed it. So there is no "pending" list to render here: an
+     area is either present with data or absent. */
+  for (const a of idx.areas) addOption(a.slug, a.municipality, false);
 
-  if (idx.pending.length) {
-    const g = document.createElement('div');
-    g.className = 'grp';
-    g.textContent = 'Ruošiama — duomenų dar nėra';
-    menu.appendChild(g);
-    for (const a of idx.pending) {
-      addOption('!' + a.municipality, a.municipality, true);
-    }
-  }
-
-  const first = idx.shipped[0];
+  const first = idx.areas[0];
   if (first) {
-    areaValue = first.municipality;
+    areaValue = first.slug;
     $('areaVal').textContent = first.municipality;
   }
 }
 
-function pendingNotice(name) {
-  const box = $('suggest');
-  box.innerHTML = '';
-  const d = document.createElement('div');
-  d.className = 'notice';
-  d.textContent = name + ' — duomenys ruošiami. Šioje savivaldybėje veikia tik vienas '
-    + 'vežėjas, tad grafikas būtų nepilnas: trūktų dalies konteinerių. Kol to nepataisysime, '
-    + 'geriau nerodyti nieko, nei rodyti pusę.';
-  box.appendChild(d);
-}
+/* pendingNotice() is gone with the "pending" list. dist/areas.json is derived
+   from what was built and gated, so an area is either there with data or not
+   listed at all — there is nothing to warn about mid-picker. */
 
 let searchTimer = null;
 async function doSearch() {
   const area = areaValue;
   const q = $('q').value.trim();
   const box = $('suggest');
-  if (area.startsWith('!')) { pendingNotice(area.slice(1)); return; }
   if (q.length < 3) { box.innerHTML = ''; return; }
 
   const idx = await getIndex();
-  const entry = idx.shipped.find(a => a.municipality === area);
+  const entry = idx.areas.find(a => a.slug === area);
   if (!entry) { box.innerHTML = ''; return; }
 
   box.innerHTML = '<div class="none">Ieškoma…</div>';
   let hits;
   try {
-    hits = searchAddresses(await getArea(entry.files), q);
+    hits = searchAddresses(await getArea(entry.slug), q);
   } catch (e) {
     box.innerHTML = '<div class="none">Nepavyko įkelti duomenų.</div>';
     return;
@@ -160,13 +147,22 @@ async function doSearch() {
 }
 
 function addAddress(hit) {
-  if (saved.list.some(a => a.address === hit.address)) {
-    saved.active = saved.list.findIndex(a => a.address === hit.address);
+  /* Stored by key, not by display string. The key is what dist/ is indexed on,
+     so a saved address can be re-resolved after a rebuild — the label may
+     change spelling, the key does not. Entries saved before this shipped have
+     no `key` and are matched on address instead, so they keep working until
+     they are re-picked. */
+  const at = saved.list.findIndex(
+    a => (a.key && a.key === hit.key) || (!a.key && a.address === hit.address));
+  if (at >= 0) {
+    saved.active = at;
   } else {
     saved.list.push({
+      key: hit.key,
+      area: areaValue,
       address: hit.address,
       containers: hit.containers.map(c => ({ id: c.id, type: c.type,
-                                             operator: c.operator, hashedId: c.hashedId }))
+                                             operator: c.operator }))
     });
     saved.active = saved.list.length - 1;
   }
