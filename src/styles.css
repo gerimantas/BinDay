@@ -1,0 +1,507 @@
+  :root {
+    --bg-base: #09090b;
+    --bg-surface: #18181b;
+    --bg-active: #27272a;
+
+    --text-primary: #fafafa;
+    --text-secondary: #b4b4bb;
+    /* Was #52525b, which measured 2.29:1 against the card ground — under half the 4.5:1
+       needed to be readable, and effectively invisible outdoors at the kerb, which is
+       exactly where this app gets used. #9a9aa2 clears 5.3:1 even on the lightest
+       surface here while still reading as secondary. */
+    --text-dim: #9a9aa2;
+    --border-subtle: #3f3f46;
+
+    /* One neon colour per waste type — the same hue drives the dot, the chip border
+       and its glow, so colour alone identifies the bin at a glance.
+       Saturated hues on a near-black ground read as neon; the matching -glow value
+       is the same colour at low alpha, used for the halo. */
+    /* Orange rather than red — brighter on this ground than either red tried before
+       (#ff2d55 went muddy, #ff4d6a sat dimmer than the yellow beside it).
+       Deliberately at hue 29°, not the more obvious 35°: mixed and packaging appear
+       side by side on the same row, and 35° left only 19° between them, which is too
+       close to tell apart in sunlight. This keeps a 25° gap at 6.8:1 contrast. */
+    --mixed: #ff7a00;      /* bright orange — mišrios komunalinės */
+    --mixed-glow: rgba(255, 122, 0, 0.55);
+    --packaging: #ffe600;  /* neon yellow — pakuotės */
+    --packaging-glow: rgba(255, 230, 0, 0.5);
+    --glass: #00ff9d;      /* neon green — stiklas */
+    --glass-glow: rgba(0, 255, 157, 0.5);
+
+    /* Types that only appear at some addresses. Kept clearly distinct from the three
+       above so a green-waste bin is never mistaken for glass. */
+    --green: #7fdc4a;      /* žaliosios atliekos */
+    --green-glow: rgba(127, 220, 74, 0.45);
+    --paper: #4db8ff;      /* popierius */
+    --paper-glow: rgba(77, 184, 255, 0.45);
+    --other: #d4d4d8;      /* unclassified */
+    --other-glow: rgba(212, 212, 216, 0.35);
+
+    /* Urgency can no longer be signalled by red — red is a bin colour now. The
+       "tonight" state is carried by a pulsing white-hot ring instead, which reads
+       as urgent regardless of which bins happen to be due. */
+    --accent-soon: #ffffff;
+    --header-h: 92px;   /* card height plus its 8px top inset and a gap below */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-secondary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 17px;
+    line-height: 1.35;
+    min-height: 100vh;
+    padding: calc(var(--header-h) + 16px) 16px 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A card like the rest, not a bar welded to the top edge. It stays fixed so the
+     address is always visible, but sits inset with rounded corners and its own lighter
+     ground so it reads as part of the same family as the hero and the list rows. */
+  header {
+    position: fixed;
+    top: 8px; left: 12px; right: 12px;
+    z-index: 10;
+    background: rgba(39, 39, 42, 0.94);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 12px 15px;
+  }
+  header h1 {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-dim);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  /* The address is what the user checks to know whose schedule this is, so it leads —
+     the app's own name is the smaller line above it. */
+  header .addr {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2px;
+    line-height: 1.3;
+    padding-right: 46px;   /* clear of the menu button */
+  }
+
+  /* ---- Hero: the answer to "do I put the bin out tonight?" ---- */
+  /* A lit edge marks this card as the one that answers the question. The first attempt
+     used 7%-opacity white, which measured as a glow but was invisible on a screen —
+     against a near-black page the halo has to be strong enough to actually lift off it.
+     Still calmer than the "tonight" state below, which pulses and goes fully white. */
+  .hero {
+    background: var(--bg-surface);
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    border-radius: 16px;
+    padding: 22px 20px;
+    margin-bottom: 14px;
+    text-align: center;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12),
+                0 0 20px rgba(255, 255, 255, 0.30),
+                0 0 52px rgba(255, 255, 255, 0.16);
+  }
+  .hero.tonight {
+    border-color: var(--accent-soon);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.55), 0 0 24px rgba(255,255,255,0.10); }
+    50%      { box-shadow: 0 0 0 1px rgba(255,255,255,1.00), 0 0 44px rgba(255,255,255,0.26); }
+  }
+  /* Motion is the urgency cue here, so respect a user who has asked for less of it —
+     the border alone still distinguishes the state. */
+  @media (prefers-reduced-motion: reduce) {
+    .hero.tonight { animation: none; box-shadow: 0 0 0 1px var(--accent-soon); }
+  }
+  .hero .when {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+  .hero.tonight .when { color: var(--accent-soon); font-weight: 700; }
+  .hero .days {
+    font-size: 46px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.05;
+    margin: 6px 0 2px;
+  }
+  .hero .date {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .hero .types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 18px;
+  }
+
+  /* Identical to a list row's mark, so the same bin looks the same everywhere on the
+     page — outlined label, no dot.
+
+     All chips share one width and centre their text. Ragged widths (Pakuotės 82px vs
+     Stiklas 63px) made a row of them look misaligned, and a column of rows worse. The
+     short names take extra letter-spacing so they fill the box rather than floating in
+     it — see .chip.short / .mark.short, which the renderer adds. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    padding: 4px 9px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--text-primary);
+  }
+  /* Tracking scaled to how far each name falls short of the widest one, so all three
+     reach roughly the same optical width instead of one word floating in its box.
+     `letter-spacing` adds a trailing space after the last glyph, which pushes the text
+     off-centre; the matching negative margin cancels it. */
+  .chip.t1, .mark.t1 { letter-spacing: 0.055em; margin-right: -0.055em; }
+  .chip.t2, .mark.t2 { letter-spacing: 0.11em;  margin-right: -0.11em;  }
+
+  .chip.MIXED     { color: var(--mixed); }
+  .chip.PACKAGING { color: var(--packaging); }
+  .chip.GLASS     { color: var(--glass); }
+  .chip.GREEN     { color: var(--green); }
+  .chip.PAPER     { color: var(--paper); }
+  .chip.OTHER     { color: var(--other); }
+
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  /* The halo is what makes these read as neon rather than as flat colour swatches.
+     Every type needs an entry: a missing one leaves the dot transparent while its
+     label is coloured, which reads as a rendering fault. */
+  .dot.MIXED     { background: var(--mixed);     box-shadow: 0 0 8px var(--mixed-glow); }
+  .dot.PACKAGING { background: var(--packaging); box-shadow: 0 0 8px var(--packaging-glow); }
+  .dot.GLASS     { background: var(--glass);     box-shadow: 0 0 8px var(--glass-glow); }
+  .dot.GREEN     { background: var(--green);     box-shadow: 0 0 8px var(--green-glow); }
+  .dot.PAPER     { background: var(--paper);     box-shadow: 0 0 8px var(--paper-glow); }
+  .dot.OTHER     { background: var(--other);     box-shadow: 0 0 8px var(--other-glow); }
+
+  /* ---- Upcoming list ---- */
+  h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    margin: 26px 0 10px 4px;
+    font-weight: 600;
+  }
+
+  /* Date on the left, bins on the right. Two columns now that "po N sav." has moved
+     under the date, where it belongs — both are facts about *when*, while the right
+     column answers *which bin*. */
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 13px 15px;
+    margin-bottom: 8px;
+  }
+  .row .left { min-width: 0; }
+  .row .d {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  /* Weekday and countdown share this line. No uppercase: it applied to the weekday
+     abbreviation but would shout "PO 2 SAV." beside it. */
+  .row .wd {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+    margin-top: 2px;
+  }
+  /* One bin per line, each named. A row of bare dots made the reader map colour to
+     meaning from the legend at the foot of the page; naming each one costs a little
+     height and removes that step. Rows are no longer uniform in height, which is
+     correct — a day with three collections IS bigger news than a day with one. */
+  /* The marks are centred as a BLOCK but left-aligned inside it, so every dot sits on
+     one vertical line. Centring each mark individually instead makes the dots step in
+     and out by half the difference in label width. `width: max-content` sizes the block
+     to its longest label; `margin: 0 auto` then centres that block in the row. */
+  .row .marks {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+  }
+  /* An outlined label rather than a dot plus text: the outline carries the colour, so
+     the bin is identifiable at a glance while the row stays one line tall even with
+     three collections on the same day. */
+  .row .marks .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    padding: 4px 9px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  /* Full strength, not the dimmed grey the dots sat in before — these are the answer
+     to "which bin", so they read at the same weight as the date beside them. */
+  .row .marks .mark.MIXED     { color: var(--mixed); }
+  .row .marks .mark.PACKAGING { color: var(--packaging); }
+  .row .marks .mark.GLASS     { color: var(--glass); }
+  .row .marks .mark.GREEN     { color: var(--green); }
+  .row .marks .mark.PAPER     { color: var(--paper); }
+  .row .marks .mark.OTHER     { color: var(--other); }
+
+
+  .year-sep {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+    margin: 18px 0 8px 4px;
+  }
+
+  .more {
+    width: 100%;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px dashed var(--border-subtle);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .more:active { background: var(--bg-surface); }
+
+
+  /* ---- Actions ---- */
+  .actions { margin-top: 26px; }
+  button {
+    width: 100%;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-bottom: 9px;
+  }
+  button:active { background: var(--bg-active); }
+  button .sub {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  footer {
+    margin-top: 30px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    text-align: center;
+  }
+  footer .warn { color: var(--accent-soon); }
+
+  @media (min-width: 560px) {
+    body { max-width: 520px; margin: 0 auto; }
+  }
+
+  /* ---- menu sheet --------------------------------------------------- */
+  /* No `position` here: the header is already fixed above, which is itself a
+     containing block for the absolutely-positioned button. Re-declaring it as
+     relative silently unfixed the header and let it scroll away. */
+  #gear {
+    position: absolute; top: 8px; right: 8px;
+    width: 42px; height: 42px; padding: 0; margin: 0;
+    background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: center;
+    align-items: center; gap: 5px;
+  }
+  #gear span {
+    display: block; width: 20px; height: 2px; border-radius: 2px;
+    background: var(--text-secondary);
+  }
+  #gear:active span { background: var(--text-primary); }
+
+  /* Two pages inside one sheet: addresses and settings. Tabs rather than a stack so
+     the user can get back without a chain of Back taps. */
+  .tabs {
+    display: flex; gap: 6px;
+    background: var(--bg-surface); border-radius: 11px;
+    padding: 4px; margin-bottom: 22px;
+  }
+  .tabs button {
+    flex: 1; width: auto; margin: 0; padding: 10px 8px;
+    font-size: 13px; font-weight: 600; border: none; border-radius: 8px;
+    background: none; color: var(--text-dim);
+  }
+  .tabs button.on { background: var(--bg-active); color: var(--text-primary); }
+  .page { display: none; }
+  .page.on { display: block; }
+
+  #sheet {
+    position: fixed; inset: 0; z-index: 20;
+    background: var(--bg-base);
+    overflow-y: auto;
+    display: none;
+  }
+  #sheet.open { display: block; }
+  /* Everything inside shares the main view's column so the sheet does not read as a
+     different app on a wide screen. */
+  #sheet .wrap {
+    padding: 20px 18px calc(28px + env(safe-area-inset-bottom));
+    max-width: 520px; margin: 0 auto;
+  }
+  /* A titlebar with the close control, so "Uždaryti" need not sit at the bottom of a
+     scrolling page where it is easy to lose. */
+  #sheet .bar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 14px 18px;
+    margin: -20px -18px 20px;
+  }
+  #sheet .bar h1 { flex: 1; font-size: 15px; letter-spacing: .04em; margin: 0; }
+  #sheet .bar button {
+    width: auto; margin: 0; padding: 8px 14px; font-size: 13px;
+    border-radius: 9px;
+  }
+  #sheet h2 {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-dim); font-weight: 600; margin: 0 0 4px;
+  }
+  #sheet .hint { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; line-height: 1.5; }
+  #sheet label { display: block; font-size: 12px; color: var(--text-secondary); margin: 14px 0 6px; }
+  #sheet input, #sheet select {
+    width: 100%; box-sizing: border-box;
+    background: var(--bg-surface); color: var(--text-primary);
+    border: 1px solid var(--border-subtle); border-radius: 10px;
+    padding: 13px; font-size: 16px; /* 16px stops iOS zooming the page on focus */
+    font-family: inherit;
+  }
+  /* A native <select>'s dropdown is drawn by the OS, which on Windows renders it at its
+     own scale — far larger than the rest of the page, and `option { font-size }` is only
+     honoured on some platforms. So the picker is built from ordinary elements instead,
+     which the app's own type scale controls everywhere. */
+  .picker { position: relative; }
+  .picker .field {
+    width: 100%; box-sizing: border-box; text-align: left;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-surface); color: var(--text-primary);
+    border: 1px solid var(--border-subtle); border-radius: 10px;
+    padding: 13px; font-size: 15px; font-weight: 400; font-family: inherit;
+    margin: 0; cursor: pointer;
+  }
+  .picker .field .val { flex: 1; }
+  .picker .field .caret { color: var(--text-dim); font-size: 11px; flex: none; }
+  .picker .menu {
+    display: none;
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle); border-radius: 12px;
+    max-height: 300px; overflow-y: auto;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  }
+  .picker.open .menu { display: block; }
+  .picker .menu .opt {
+    padding: 12px 14px; font-size: 15px; color: var(--text-primary);
+    cursor: pointer; border-bottom: 1px solid var(--bg-base);
+  }
+  .picker .menu .opt:last-child { border-bottom: none; }
+  .picker .menu .opt:hover, .picker .menu .opt:active { background: var(--bg-active); }
+  .picker .menu .opt.sel { color: var(--glass); }
+  .picker .menu .opt.dim { color: var(--text-dim); }
+  .picker .menu .grp {
+    padding: 10px 14px 6px; font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text-dim);
+    background: var(--bg-base);
+  }
+  #sheet input:focus, #sheet select:focus { outline: 1px solid var(--text-dim); }
+
+  .suggest { margin-top: 8px; border-radius: 12px; overflow: hidden; }
+  .suggest .hit {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 14px; font-size: 14px; line-height: 1.35;
+    background: var(--bg-surface); border-bottom: 1px solid var(--bg-base);
+    cursor: pointer;
+  }
+  .suggest .hit:active { background: var(--bg-active); }
+  .suggest .hit .dots { display: flex; gap: 4px; flex: none; }
+  .suggest .none { padding: 13px 14px; font-size: 13px; color: var(--text-dim); }
+
+  /* One dot per waste type, in that type's colour — the emoji circles did not match the
+     app's palette and rendered at inconsistent sizes across platforms. */
+  .tdot {
+    width: 9px; height: 9px; border-radius: 50%;
+    display: inline-block; flex: none;
+  }
+
+  .saved { margin: 8px 0 0; }
+  .saved .row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-surface); border-radius: 12px;
+    padding: 13px 14px; margin-bottom: 8px;
+    border: 1px solid transparent;
+  }
+  /* The active address needs to be obvious at a glance — a faint border was not enough
+     to tell which of several saved addresses the schedule belongs to. */
+  .saved .row.active {
+    border-color: var(--text-secondary);
+    background: var(--bg-active);
+  }
+  .saved .row .tick {
+    width: 18px; flex: none; text-align: center;
+    color: var(--text-dim); font-size: 13px;
+  }
+  .saved .row.active .tick { color: var(--glass); }
+  .saved .row .name { flex: 1; font-size: 14px; line-height: 1.4; min-width: 0; }
+  .saved .row .name .meta {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-dim); margin-top: 4px;
+  }
+  /* Container numbers are the thing printed on the bin, so they get a monospace face —
+     they are read digit by digit against a sticker, not skimmed as prose. */
+  .saved .row .name .nums {
+    display: block; margin-top: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px; color: var(--text-dim); word-break: break-all;
+  }
+  .saved .row .del {
+    width: auto; flex: none; margin: 0; padding: 7px 11px; font-size: 12px;
+    background: none; border: 1px solid var(--border-subtle); color: var(--text-dim);
+    border-radius: 8px;
+  }
+  .notice {
+    background: var(--bg-surface); border-left: 3px solid var(--accent-soon);
+    border-radius: 8px; padding: 12px 13px; font-size: 13px; line-height: 1.5;
+    color: var(--text-secondary); margin-top: 14px;
+  }
+  .busy { font-size: 13px; color: var(--text-dim); margin-top: 12px; }

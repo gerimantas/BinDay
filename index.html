@@ -599,8 +599,8 @@
   <footer style="margin-top:26px">Duomenys: UAB Kauno švara · Ekonovus</footer>
  </div>
 </div>
-
 <script>
+/* ===== data.js ===== */
 /* ------------------------------------------------------------------
    Schedule data — generated from Atlieku_isvezimo_grafikai.md
 
@@ -675,6 +675,7 @@ const WD_SHORT = ['Sekm','Pir','Ant','Tre','Ket','Pen','Šeš'];
 const MON_GEN = ['sausio','vasario','kovo','balandžio','gegužės','birželio',
                  'liepos','rugpjūčio','rugsėjo','spalio','lapkričio','gruodžio'];
 
+/* ===== dates.js ===== */
 /* Local-date ISO string. Deliberately not toISOString(), which converts to UTC
    and rolls the date back an hour before midnight in Lithuania — the app would
    claim a pickup was "today" on the evening before. */
@@ -697,6 +698,16 @@ function prettyDate(iso) {
   return d.getDate() + ' ' + MON_GEN[d.getMonth()];
 }
 
+function relativeLabel(days) {
+  if (days === 0) return 'šiandien';
+  if (days === 1) return 'rytoj';
+  if (days < 0) return null;
+  if (days < 7) return `po ${days} d.`;
+  const weeks = Math.round(days / 7);
+  return `po ${weeks} sav.`;
+}
+
+/* ===== calendar.js ===== */
 /* Merge every container's dates into one day-keyed calendar: one row per day
    listing the bins due, which is how the bins actually get taken out. */
 function buildCalendar() {
@@ -712,15 +723,7 @@ function buildCalendar() {
     .map(([iso, types]) => ({ iso, types }));
 }
 
-function relativeLabel(days) {
-  if (days === 0) return 'šiandien';
-  if (days === 1) return 'rytoj';
-  if (days < 0) return null;
-  if (days < 7) return `po ${days} d.`;
-  const weeks = Math.round(days / 7);
-  return `po ${weeks} sav.`;
-}
-
+/* ===== render.js ===== */
 /* Whether the user has asked to see the whole horizon. Deliberately not persisted:
    the minute-tick re-render reads it, but a fresh open should start compact. */
 let expanded = false;
@@ -849,6 +852,7 @@ function render(now) {
   if (less) less.addEventListener('click', () => { expanded = false; refresh(); });
 }
 
+/* ===== ics.js ===== */
 /* ------------------------------------------------------------------
    ICS export
 
@@ -981,6 +985,7 @@ function downloadICS(entries) {
    of the hero saying "tomorrow" while a row says "today" after a midnight tick. */
 function refresh() { render(new Date()); }
 
+/* ===== catalog.js ===== */
 /* ------------------------------------------------------------------
    Settings — saved addresses, catalogue lookup, geolocation
 
@@ -1042,6 +1047,7 @@ async function getArea(files) {
   return out;
 }
 
+/* ===== search.js ===== */
 /* Švara and Ekonovus write the same place differently — "Žalgirio g. 8A,
    Juragių k., …" vs "Juragių k. Žalgirio g. 8A" — so matching is done on a
    normalised bag of words rather than on the string as written. */
@@ -1134,6 +1140,7 @@ function typeDots(containers) {
   });
 }
 
+/* ===== settings.js ===== */
 /* ---- settings UI ---- */
 const $ = id => document.getElementById(id);
 const sheet = $('sheet');
@@ -1397,6 +1404,8 @@ function showPage(which) {
   $('tabSet').setAttribute('aria-selected', addr ? 'false' : 'true');
   if (!addr) fillDataInfo();
 }
+
+/* ===== main.js ===== */
 $('tabAddr').addEventListener('click', () => showPage('addr'));
 $('tabSet').addEventListener('click', () => showPage('set'));
 

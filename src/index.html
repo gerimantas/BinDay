@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BinDay — Atliekų išvežimas</title>
+<meta name="description" content="Atliekų išvežimo grafikas — Žalgirio g. 8A, Juragiai. Mišrios, pakuotės, stiklas.">
+<meta name="theme-color" content="#09090b">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BinDay">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" sizes="any">
+<!-- iOS ignores the manifest icons when adding to the home screen; without this it
+     uses a screenshot of the page instead of the app icon. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!--STYLES-->
+</head>
+<body>
+
+<header>
+  <h1>BinDay</h1>
+  <div class="addr" id="addr">Žalgirio g. 8A, Juragiai</div>
+  <button id="gear" aria-label="Meniu" title="Meniu">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<main id="app" aria-live="polite"></main>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-label="Meniu">
+ <div class="wrap">
+  <div class="bar">
+    <h1>MENIU</h1>
+    <button id="close">Uždaryti</button>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button id="tabAddr" class="on" role="tab" aria-selected="true">Adresai</button>
+    <button id="tabSet" role="tab" aria-selected="false">Nustatymai</button>
+  </div>
+
+  <!-- Page: addresses -->
+  <div class="page on" id="pageAddr" role="tabpanel">
+    <h2>Išsaugoti adresai</h2>
+    <div class="hint">Palieskite adresą, kad rodytumėte jo grafiką.</div>
+    <div class="saved" id="saved"></div>
+
+    <button id="addToggle" style="margin-top:16px">+ Pridėti adresą</button>
+
+    <div id="addForm" hidden>
+      <label for="areaBtn">Savivaldybė</label>
+      <div class="picker" id="areaPicker">
+        <button type="button" class="field" id="areaBtn" aria-haspopup="listbox"
+                aria-expanded="false">
+          <span class="val" id="areaVal">Įkeliama…</span>
+          <span class="caret">▼</span>
+        </button>
+        <div class="menu" id="areaMenu" role="listbox"></div>
+      </div>
+
+      <label for="q">Gatvė ir namo numeris</label>
+      <input id="q" type="text" inputmode="text" autocomplete="off"
+             placeholder="pvz. Žalgirio g. 8A" aria-describedby="qhint">
+      <div class="hint" id="qhint" style="margin:6px 0 0">Įveskite bent 3 simbolius.</div>
+      <div class="suggest" id="suggest"></div>
+
+      <button id="locate" style="margin-top:18px">📍 Rasti pagal vietą
+        <span class="sub">Pasiūlys artimiausius adresus — pasirinksite patys</span></button>
+      <div class="busy" id="busy" hidden></div>
+    </div>
+  </div>
+
+  <!-- Page: settings -->
+  <div class="page" id="pageSet" role="tabpanel">
+    <h2>Priminimai</h2>
+    <div class="hint">Kalendoriaus eksportas sukuria įvykį kiekvienam išvežimui su
+      priminimu iš vakaro.</div>
+    <button id="icsAll">Eksportuoti į kalendorių</button>
+
+    <h2 style="margin-top:28px">Duomenys</h2>
+    <div class="hint" id="dataInfo">Įkeliama…</div>
+
+    <h2 style="margin-top:28px">Apie</h2>
+    <div class="hint">BinDay — atliekų išvežimo grafikas.
+      Duomenys: UAB Kauno švara ir Ekonovus. Grafikai atnaujinami periodiškai;
+      jei data praėjo, reikia atnaujinti duomenis.</div>
+  </div>
+
+  <footer style="margin-top:26px">Duomenys: UAB Kauno švara · Ekonovus</footer>
+ </div>
+</div>
+<!--SCRIPTS-->
+</body>
+</html>

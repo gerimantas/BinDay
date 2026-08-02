@@ -16,6 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: index.html is up to date with src/
+        # Catches the failure this build step exists to prevent: editing src/ and
+        # shipping a stale index.html, which looks like the fix simply not working.
+        run: python3 tools/build_app.py --check
+
       - name: Runner identity
         run: |
           echo "egress IP: $(curl -s --max-time 20 https://api.ipify.org || echo UNKNOWN)"
