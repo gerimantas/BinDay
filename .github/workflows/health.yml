@@ -1,0 +1,69 @@
+name: Health check
+
+# Are both operators still reachable, and does the committed dist/ still hold?
+#
+# Started life as a throwaway probe answering whether a GitHub runner could
+# reach either operator at all. It could: egress 172.208.13.80, and Ekonovus
+# answered faster there (0.6 s) than locally (9.4 s). That question is settled,
+# so the file now earns its place as a cheap standing check — it runs weekly and
+# fails loudly if an operator changes shape, months before the monthly refresh
+# would have discovered it.
+#
+# The refresh itself lives in refresh.yml.
+
+on:
+  schedule:
+    # Weekly, Monday 05:23 UTC. Off the hour: the top of the hour is when every
+    # scheduled workflow on GitHub fires at once.
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: health-check
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: index.html is up to date with src/
+        # Catches the failure the build step exists to prevent: editing src/ and
+        # shipping a stale index.html, which looks like the fix simply not working.
+        run: python3 tools/build_app.py --check
+
+      - name: dist/ passes the publish gate
+        # The committed dist/ is what the app fetches. A build that lost an
+        # address or fused two of them looks entirely reasonable from every
+        # other angle — this is the check that says otherwise.
+        run: python3 tools/check_dist.py
+
+      - name: Runner identity
+        run: |
+          echo "egress IP: $(curl -s --max-time 20 https://api.ipify.org || echo UNKNOWN)"
+          echo "region hint: $(curl -s --max-time 20 https://ipinfo.io/country || echo UNKNOWN)"
+
+      - name: Ekonovus — Power BI anonymous query
+        run: python3 .github/workflows/probe_ekonovus.py
+
+      - name: Švara — seroval server function
+        run: |
+          npm install seroval --no-save --silent
+          node .github/workflows/probe_svara.mjs
+
+      # The shipped dates must still match what the operators say. This is the
+      # same comparison the monthly pre-check makes, run weekly so a
+      # republished year surfaces early rather than at the next refresh.
+      - name: Shipped dates still match the operators
+        run: |
+          set +e
+          python3 tools/precheck.py
+          code=$?
+          set -e
+          case "$code" in
+            0)  echo "unchanged" ;;
+            10) echo "::warning::The operators have republished — dist/ is stale. Run the Refresh schedules workflow." ;;
+            *)  echo "::error::The pre-check could not reach an operator."; exit 1 ;;
+          esac

@@ -1,0 +1,124 @@
+name: Refresh schedules
+
+# Re-asks both operators for the schedule, rebuilds dist/, and commits it only if
+# the publish gate passes.
+#
+# Monthly is roughly 30x the margin actually needed: schedules are published
+# months ahead and the app's own glass horizon runs to 2027-07-06. The point of
+# running at all is to notice the year being republished before a user notices a
+# missed collection.
+#
+# A cheap pre-check runs first and stops the job in seconds when nothing has
+# changed, so most months cost one request rather than thirty minutes of
+# operator traffic.
+
+on:
+  schedule:
+    # 04:17 UTC on the 3rd. Off the hour on purpose: the top of the hour is when
+    # every scheduled workflow on GitHub fires at once and queueing is worst.
+    - cron: '17 4 3 * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Refresh even if the pre-check says nothing changed'
+        type: boolean
+        default: false
+
+# Two runs writing dist/ concurrently would race on the commit. Queue instead of
+# cancelling: a half-finished fetch leaves raw/ intact but the build would be
+# skipped, and the next run would then publish nothing new.
+concurrency:
+  group: refresh-schedules
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90        # a full refresh measured ~30 min; this is slack
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install seroval
+        run: npm install seroval --no-save --silent
+
+      # raw/ is gitignored, so a runner starts with nothing and the pre-check
+      # compares against the committed dist/ instead. That is the right
+      # comparison anyway: dist/ is what users actually have.
+      - name: Has anything changed at the operators?
+        id: precheck
+        run: |
+          set +e
+          python3 tools/precheck.py
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "0" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            # 10 = changed, 1 = could not tell. Both refresh: skipping on an
+            # inconclusive check is how a stale schedule survives indefinitely.
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch catalogues
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: |
+          node tools/fetch_svara.js
+          python3 tools/fetch_ekonovus.py
+
+      - name: Fetch dates
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: |
+          node tools/fetch_dates_svara.mjs
+          python3 tools/fetch_dates_ekonovus_bulk.py --max-age-days 0
+
+      # Keep the committed build to compare against. Taken BEFORE the rebuild,
+      # because build_dist.py replaces dist/ wholesale and there would be
+      # nothing left to diff afterwards.
+      - name: Snapshot the current dist/
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: cp -r dist /tmp/previous
+
+      - name: Build dist/
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: python3 tools/build_dist.py
+
+      # The gate. A build that lost an address, fused two of them, or stopped a
+      # paged fetch early looks entirely reasonable from every other angle.
+      # --previous is what catches silent loss specifically: no address may
+      # vanish and none may lose a container versus what users already have.
+      - name: Publish gate
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: python3 tools/check_dist.py --previous /tmp/previous
+
+      - name: index.html is up to date with src/
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: python3 tools/build_app.py --check
+
+      - name: Commit dist/
+        if: steps.precheck.outputs.changed == 'true' || inputs.force
+        run: |
+          if git diff --quiet -- dist; then
+            echo "dist/ is byte-identical — nothing to commit"
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add dist
+          git commit -m "Refresh schedules $(date -u +%Y-%m-%d)
+
+          Automated by .github/workflows/refresh.yml. dist/ passed
+          tools/check_dist.py, including the comparison against the previous
+          build: no address lost, none fused, no container left without dates."
+          git push
+
+      - name: Nothing to do
+        if: steps.precheck.outputs.changed == 'false' && !inputs.force
+        run: echo "Operators unchanged — skipped the refresh."
