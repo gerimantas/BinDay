@@ -27,10 +27,15 @@ function render(now) {
   // before, so a pickup tomorrow is what needs acting on right now.
   const tonight = days === 1 || (days === 0 && now.getHours() < 8);
 
+  /* The kicker says what to DO, not what the card is. "Kitas išvežimas" only
+     restated the obvious — the big number below it already says a pickup is
+     coming — so the line that actually matters lives here instead: the
+     operators want the bins out the evening before. The two urgent states keep
+     their own wording, which is more specific still. */
   let headline, when;
   if (days === 0) { headline = 'Šiandien'; when = 'Išveža'; }
   else if (days === 1) { headline = 'Rytoj'; when = 'Išstumk šįvakar'; }
-  else { headline = `Po ${days} d.`; when = 'Kitas išvežimas'; }
+  else { headline = `Po ${days} d.`; when = 'Konteinerius paruošti iš vakaro'; }
 
   /* Chips share a fixed width, so a short name would sit in a pool of empty box.
      Tracking is widened in two steps according to how many characters the name is
@@ -111,9 +116,10 @@ function render(now) {
     .filter(c => daysBetween(today, c.until) < 60)
     .map(c => c.label);
 
+  // "Konteinerius paruošti iš vakaro" moved into the hero, where it is the
+  // instruction rather than a footnote. The footer keeps only provenance.
   html += `<footer>
-    Duomenys surinkti ${getCollected()}<br>
-    Konteinerius paruošti iš vakaro
+    Duomenys surinkti ${getCollected()}
     ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
   </footer>`;
 
