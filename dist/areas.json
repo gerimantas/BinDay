@@ -1,0 +1,18 @@
+{
+ "generated": "2026-08-02",
+ "areas": [
+  {
+   "slug": "kauno-r-sav",
+   "municipality": "Kauno r. sav.",
+   "addresses": 40960,
+   "operators": [
+    "Švara",
+    "Ekonovus"
+   ],
+   "files": [
+    "index.json",
+    "data.json"
+   ]
+  }
+ ]
+}

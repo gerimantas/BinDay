@@ -34,7 +34,7 @@ def raw_path(operator, area, unit):
     return os.path.join(RAW, operator, area, unit + ".json")
 
 
-def write_json(path, payload, *, source=None, request=None):
+def write_json(path, payload, *, source=None, request=None, compact=False):
     """Write JSON, then its .meta.json sidecar, both atomically.
 
     Writes to a temporary file in the same directory, flushes, fsyncs, then
@@ -42,9 +42,16 @@ def write_json(path, payload, *, source=None, request=None):
     run leaves the previous file completely intact rather than half of a new
     one. The sidecar is written after the data, so a sidecar always describes a
     file that is fully on disk.
+
+    compact=True drops the indentation. Use it for anything a phone downloads:
+    indenting dist/kauno-r-sav/data.json costs 11.7 MB against 2.6 MB compact
+    (0.68 MB either way once gzipped, but the phone still has to parse it, and
+    GitHub Pages does not always serve gzip).
     """
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    text = json.dumps(payload, ensure_ascii=False, indent=1)
+    text = json.dumps(payload, ensure_ascii=False,
+                      separators=(",", ":") if compact else None,
+                      indent=None if compact else 1)
     _atomic_text(path, text)
 
     count = None

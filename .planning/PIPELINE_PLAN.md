@@ -182,10 +182,13 @@ other way round.
 
 One entry per address, carrying every container from both operators.
 
-**The 36 348 figure was computed with the flat collapsed and must be recomputed.** It is no
-longer the acceptance target — keying on `(locality, street, house, flat)` necessarily
-yields more entries, since 4 813 Švara and 10 373 Ekonovus rows carry a flat. Recompute it
-in step 5 and record the new number; do not treat a change from 36 348 as a regression.
+**Recomputed with the flat in the key (2026-08-02): 40 960 addresses**, of which 33 674 are
+at both operators and 5 892 carry a flat. 270 localities, 3 998 streets. The old 36 348 was
+computed with the flat collapsed and is not a regression target — the increase *is* the
+correction.
+
+Parse coverage: Švara 57 201 of 58 477 rows (2.2% unparsed), Ekonovus 75 059 of 76 371
+(1.7%). The unparsed remainder is addresses with no house number or no street token.
 
 The one-operator entries are **not** a defect — they are the service split (Švara-only 92%
 mixed waste, Ekonovus-only 78% packaging+glass), confirmed live on `Gabijos g.,
@@ -218,10 +221,18 @@ dist/
     schedules.json      schedule id → date list                  (~119 entries per area)
 ```
 
-**The sizes are unmeasured.** The `0.06 MB` / `0.60 MB` figures in the first draft appear
-nowhere in `DECISIONS.md`; a direct measurement of Švara's Kauno r. address strings alone
-gzips to **0.14 MB**, already over the claimed full index. Measure and record the real
-numbers at step 5 rather than carrying an estimate written as fact.
+**Sizes, now measured** (built 2026-08-02, Kauno r., 40 960 addresses):
+
+| file | raw | gzipped |
+|---|---|---|
+| `index.json` | 0.26 MB | **0.05 MB** |
+| `data.json` | 4.61 MB | **0.64 MB** |
+
+Close to the first draft's unmeasured `0.06`/`0.60`, but only after two format decisions
+that were not obvious: write the payload compact (indenting cost 11.7 MB raw) and store
+each container as `[id, type, operatorIndex]` rather than an object, since repeating three
+key names 133 000 times cost more than the data (8.7 MB → 4.6 MB). Gzip hides both — the
+phone still parses the raw bytes, and GitHub Pages does not always serve gzip.
 
 Rules:
 
