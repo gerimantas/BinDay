@@ -616,7 +616,9 @@
 const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav.';
 const COLLECTED = '2026-07-30';
 
-const CONTAINERS = [
+/* The schedule shipped with the app — the default shown when no saved address is
+   active. Treat as immutable: it is the fallback applyActive() returns to. */
+const DEFAULT_SCHEDULE = [
   {
     type: 'MIXED', label: 'Mišrios', id: '52-MK-036668',
     // Calendar clients won't honour a colour we set, so the emoji carries the
@@ -645,6 +647,27 @@ const CONTAINERS = [
     dates: ['2026-08-04','2026-10-27','2027-01-19','2027-04-13','2027-07-06']
   }
 ];
+
+/* The schedule currently on screen.
+
+   This was previously a module-level `const CONTAINERS` that applyActive()
+   mutated in place (`CONTAINERS.length = 0; CONTAINERS.push(...)`). That worked
+   only by accident of everything sharing one script scope: split into modules,
+   each importing CONTAINERS as a binding, and the mutation would stop
+   propagating — the app would keep rendering the built-in Juragiai schedule
+   while displaying another address. Read through getSchedule(), replace through
+   setActiveSchedule(), so the indirection survives the split. */
+let activeSchedule = DEFAULT_SCHEDULE;
+
+function getSchedule() {
+  return activeSchedule;
+}
+
+/* Pass no argument (or an empty list) to fall back to the shipped schedule. The
+   caller does not have to know what the default is. */
+function setActiveSchedule(list) {
+  activeSchedule = (list && list.length) ? list : DEFAULT_SCHEDULE;
+}
 
 const WD = ['Sekmadienis','Pirmadienis','Antradienis','Trečiadienis',
             'Ketvirtadienis','Penktadienis','Šeštadienis'];
@@ -678,7 +701,7 @@ function prettyDate(iso) {
    listing the bins due, which is how the bins actually get taken out. */
 function buildCalendar() {
   const byDay = new Map();
-  for (const c of CONTAINERS) {
+  for (const c of getSchedule()) {
     for (const iso of c.dates) {
       if (!byDay.has(iso)) byDay.set(iso, []);
       byDay.get(iso).push(c);
@@ -736,7 +759,7 @@ function render(now) {
      Tracking is widened in two steps according to how many characters the name is
      short of the longest one in play — computed from the actual labels rather than
      hardcoded, since a new waste type changes which name is longest. */
-  const widest = Math.max(...CONTAINERS.map(c => c.label.length), 1);
+  const widest = Math.max(...getSchedule().map(c => c.label.length), 1);
   const track = label => {
     const gap = widest - label.length;
     return gap >= 3 ? ' t2' : gap >= 1 ? ' t1' : '';
@@ -807,7 +830,7 @@ function render(now) {
   // Surface each container's horizon: they differ (Ekonovus publishes a fixed
   // count, Švara a rolling window), so one running out is normal and shouldn't
   // read as the whole schedule being stale.
-  const expiring = CONTAINERS
+  const expiring = getSchedule()
     .filter(c => daysBetween(today, c.until) < 60)
     .map(c => c.label);
 
@@ -1340,17 +1363,20 @@ async function locate() {
 function applyActive() {
   const a = saved.list[saved.active];
   if (!a) {
+    setActiveSchedule();          // back to the shipped Juragiai schedule
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
   }
   document.getElementById('addr').textContent = shortAddress(a.address);
   if (a.schedule && a.schedule.length) {
-    CONTAINERS.length = 0;
-    CONTAINERS.push(...a.schedule);
+    setActiveSchedule(a.schedule);
     refresh();
     return;
   }
+  /* No dates for this address yet — make sure a previously selected address's
+     schedule is not left on screen under this one's name. */
+  setActiveSchedule();
   const types = a.containers
     .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
     .map(m => m.emoji + ' ' + m.label).join(' · ');
