@@ -218,6 +218,13 @@ def main():
     ap.add_argument("--out", default=os.path.join(RAW, "ekonovus"))
     ap.add_argument("--template", default="tools/pbi_template.json",
                     help="a captured querydata request body (see the binday skill)")
+    # Scope is Kauno r. sav. (.planning/PIPELINE_PLAN.md), which is Ekonovus code 52.
+    # The Power BI query cannot be filtered by municipality — one request returns the
+    # whole country — so the filter applies at the write step, where the container-number
+    # prefix has already sorted rows by municipality. Without it, raw/ fills with 20+
+    # areas nothing consumes and later steps must tell apart from the real ones.
+    ap.add_argument("--codes", default="52",
+                    help="comma-separated municipality codes to write, or 'all'")
     args = ap.parse_args()
 
     template = json.load(io.open(args.template, encoding="utf-8"))
@@ -263,10 +270,24 @@ def main():
 
     check_names(by_code)
 
+    wanted = None if args.codes.strip().lower() == "all" else \
+        {c.strip() for c in args.codes.split(",") if c.strip()}
+    if wanted is not None:
+        unseen = wanted - set(by_code)
+        if unseen:
+            sys.exit(f"FAILED: no rows for code(s) {', '.join(sorted(unseen))} — "
+                     f"present: {', '.join(sorted(by_code))}")
+        names = ", ".join(f"{c} ({MUNICIPALITIES.get(c, ('?',))[0]})"
+                          for c in sorted(wanted))
+        print(f"writing {len(wanted)} of {len(by_code)} municipalities: {names}")
+        print("(--codes all writes every municipality)")
+
     os.makedirs(args.out, exist_ok=True)
     index = []
     failed = []
     for code, entries in sorted(by_code.items(), key=lambda kv: -len(kv[1])):
+        if wanted is not None and code not in wanted:
+            continue
         known = MUNICIPALITIES.get(code)
         name = (known[0] if known else None) or name_from_addresses(entries) \
             or f"(kodas {code})"

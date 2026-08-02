@@ -37,6 +37,16 @@ const args = process.argv.slice(2);
 const outDir = args.includes('--out') ? args[args.indexOf('--out') + 1]
                                       : join(RAW, 'svara');
 
+// Scope is Kauno r. sav. (.planning/PIPELINE_PLAN.md). Without this the fetcher
+// walks all 9 Švara municipalities — roughly 13 minutes of operator traffic for
+// data nothing consumes, and eight stray directories in raw/ that later steps
+// would have to distinguish from real ones.
+const DEFAULT_REGIONS = ['Kauno r. sav.'];
+const regions = args.includes('--regions')
+  ? args[args.indexOf('--regions') + 1].split(',').map(s => s.trim())
+  : DEFAULT_REGIONS;
+const allRegions = args.includes('--all');
+
 /** Minimal seroval reader — enough for the object/array/string/bool shapes this API returns. */
 function plain(n) {
   if (!n || typeof n !== 'object') return n;
@@ -120,8 +130,24 @@ function wasteType(description, inventory) {
 const slug = s => s.replace(/\s+/g, '-').replace(/[^\p{L}\p{N}-]/gu, '').toLowerCase();
 
 async function main() {
-  const districts = await api('/schedule/getdistricts?search=');
-  console.log(`Švara covers ${districts.length} municipalities`);
+  const all = await api('/schedule/getdistricts?search=');
+  console.log(`Švara covers ${all.length} municipalities`);
+
+  const districts = allRegions ? all
+    : all.filter(d => regions.includes(d.district));
+  if (!allRegions) {
+    const missing = regions.filter(r => !all.some(d => d.district === r));
+    if (missing.length) {
+      // Throw rather than process.exit(): exiting from inside an async function
+      // while a fetch handle is still open trips a libuv assertion, and the
+      // process then reports 127 instead of 1 — a scope typo would look like a
+      // missing interpreter. The catch at the bottom turns this into exit 1.
+      console.error(`available: ${all.map(d => d.district).join(', ')}`);
+      throw new Error(`not served by Švara: ${missing.join(', ')}`);
+    }
+    console.log(`fetching ${districts.length} in scope: ${regions.join(', ')}`);
+    console.log('(--all fetches every municipality; --regions "A,B" overrides)');
+  }
   console.log(`writing to ${outDir}/ — this run never deletes\n`);
 
   const index = [];
@@ -179,8 +205,12 @@ async function main() {
   if (failed.length) {
     console.error(`\n${failed.length} municipalities failed:`);
     for (const f of failed) console.error(`   ${f.region}: ${f.error}`);
-    process.exit(1);
+    process.exitCode = 1;      // see the note at the bottom of this file
   }
 }
 
-main().catch(e => { console.error('FAILED:', e.message); process.exit(1); });
+// Set exitCode rather than calling process.exit(): forcing an exit while a fetch
+// handle is still open trips a libuv assertion on Windows and the process reports
+// 127, which reads as "interpreter not found" rather than "this run failed".
+// Setting the code lets Node drain its handles and exit 1 on its own.
+main().catch(e => { console.error('FAILED:', e.message); process.exitCode = 1; });
