@@ -54,13 +54,9 @@ production at all — `data/catalog/` gitignored, so the live index 404'd.
 - **337 addresses (0.8%) still have a container without dates.** Not investigated: whether
   the operators publish nothing for them or the parse misses them. `check_dist.py` enforces
   a 90% floor per operator, so this is visible but tolerated.
-- **Split the `binday` skill — the pipeline has stopped changing, so the deferral no longer
-  applies.** SKILL.md is 470
-  lines / 25.7 KB and loads on every trigger. The Power BI section alone is 93 lines
-  (20%) of call-shape detail only needed when actually calling Ekonovus — move it to
-  `references/` like `operator-gotchas.md`, leaving ~380 lines. It also needs S4's
-  corrections: the four-part key, the unpaged 500-row date window, and that `hashedId`
-  does not drive `getschedule`.
+- **Rewrite the `binday` skill — it now describes a world that no longer exists, and will
+  actively mislead.** It triggers on "atnaujink grafikus" and then instructs commands that
+  were deleted this session. Plan: `.planning/SKILL_REWRITE.md`.
 - **Second calendar reminder does not survive Google import.** Google Calendar keeps only
   the first `VALARM` from an imported ICS, so the 20:00 alert is dropped and only 17:00
   shows. Fix by creating a dedicated `BinDay` calendar in Google with two default event
