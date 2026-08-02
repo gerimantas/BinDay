@@ -101,6 +101,19 @@ def main():
         fail("areas.json ships no areas")
         return report(problems, warnings)
 
+    # No build timestamps anywhere a rebuild would touch. They make an
+    # identical rebuild look like new data: the scheduled run then commits a
+    # one-line diff every month, and a diff that is always there is never read.
+    # `collected` is exempt — it is when the operators were asked, which only
+    # moves when the data really does.
+    if "generated" in areas:
+        fail("areas.json carries a build timestamp — use each area's "
+             "`collected` instead, or every rebuild is a spurious commit")
+    for a in areas["areas"]:
+        if not a.get("collected"):
+            warn(f"{a['slug']}: no `collected` date — the app cannot state "
+                 f"how old the data is")
+
     total_addresses = 0
     for a in areas["areas"]:
         slug = a["slug"]

@@ -420,18 +420,38 @@ re-download.
 
 Ordered so that each step is verifiable on its own, and so nothing is moved twice.
 
-| # | Step | Verifiable by |
-|---|---|---|
-| 1 | Replace mutated `CONTAINERS` with `setActiveSchedule`/`getSchedule` | inject a temporary second schedule (see below) and switch between them; no `CONTAINERS.length = 0` remains |
-| 2 | `raw/` + `dist/` layout, atomic writes, `.meta.json` | delete `dist/`, rebuild, identical output |
-| 3 | Split `index.html`, add `build_app.py` (bumps `CACHE`) | behavioural checks above pass |
-| 4 | Rewrite fetchers to write `raw/` only, never delete | interrupt mid-run, previous files intact |
-| 5 | normalise + merge + build → `dist/` | Žalgirio 8A carries 3 streams; the three new collision assertions pass; record the address count and real gzip sizes |
-| 6 | New `dist/` checker, wired as publish gate | break a file on purpose, publish aborts |
-| 7 | Commit `dist/`, cache data files in `sw.js` | live `dist/areas.json` returns 200, not today's 404; works offline |
-| 8 | Fetch dates and wire `a.schedule` (see below — this is not a wiring task) | saved address renders a schedule instead of "dar neįkeltos" |
-| 9 | `version.json` revalidation | change a signature, app picks up new data next open |
-| 10 | GitHub Actions monthly + cheap pre-check | scheduled run green; a second run does nothing |
+**All ten steps are done** (2026-08-02/03). What each turned out to cost, and what it
+found, is in the commit for that step.
+
+| # | Step | Verifiable by | Done |
+|---|---|---|---|
+| 1 | Replace mutated `CONTAINERS` with `setActiveSchedule`/`getSchedule` | inject a temporary second schedule (see below) and switch between them; no `CONTAINERS.length = 0` remains | ✅ `56d9384` |
+| 2 | `raw/` + `dist/` layout, atomic writes, `.meta.json` | delete `dist/`, rebuild, identical output | ✅ `2d582c0` |
+| 3 | Split `index.html`, add `build_app.py` (bumps `CACHE`) | behavioural checks above pass | ✅ `ba9a950`, `ce9d556` |
+| 4 | Rewrite fetchers to write `raw/` only, never delete | interrupt mid-run, previous files intact | ✅ `d200206` |
+| 5 | normalise + merge + build → `dist/` | Žalgirio 8A carries 3 streams; the three new collision assertions pass; record the address count and real gzip sizes | ✅ `5fff5ed` |
+| 6 | New `dist/` checker, wired as publish gate | break a file on purpose, publish aborts | ✅ `97122da` |
+| 7 | Commit `dist/`, cache data files in `sw.js` | live `dist/areas.json` returns 200, not today's 404; works offline | ✅ `9a8f846` |
+| 8 | Fetch dates and wire `a.schedule` (see below — this is not a wiring task) | saved address renders a schedule instead of "dar neįkeltos" | ✅ `e165217` |
+| 9 | `version.json` revalidation | change a signature, app picks up new data next open | ✅ `60f5fb3` |
+| 10 | GitHub Actions monthly + cheap pre-check | scheduled run green; a second run does nothing | ✅ `de349e2` |
+
+### What the execution corrected in the plan
+
+| Plan said | Turned out |
+|---|---|
+| Švara dates ≈ 61 min | **9 min** — the estimate was sequential; 8 concurrent requests, 0 failures |
+| Step 8 is "the largest undecided design" | Already decided two sessions earlier: no CORS anywhere, schedules change yearly, so dates are prebuilt. Asking again wasted a turn |
+| `0.06` / `0.60` MB gzipped | 0.05 / 0.93 MB — but only after two format changes the plan had not anticipated (compact JSON, tuple rows) |
+| 36 348 addresses | **40 959**, because the flat is now in the key |
+| ~119 schedules | **185** across 131 571 dated containers |
+
+Four defects were found by running things rather than reading them, each silent:
+`hashedId` does not drive `getschedule` (only `wasteObjectId` does); the Power BI date
+query has an unpaged 500-row window that cost 25% of the municipality; `version.json` was
+itself being cached, which would have broken the update on exactly the deploy it exists to
+deliver; and `cache: 'reload'` does not bypass a service worker, so the signature updated
+while the data did not.
 
 **Step 1's obvious test cannot fail.** "The app behaves identically" is guaranteed no matter
 what the refactor does, because the branch being changed is dead: `a.schedule` is written

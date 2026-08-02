@@ -18,10 +18,11 @@ async function fillDataInfo() {
     const idx = await getIndex();
     const names = idx.areas.map(a => a.municipality).join(', ');
     const total = idx.areas.reduce((n, a) => n + (a.addresses || 0), 0);
-    // The oldest collection date across areas, not the build date: rebuilding
-    // from unchanged raw/ does not make the data newer.
+    // The oldest collection date across areas. There is deliberately no build
+    // date to fall back on: it would change on every rebuild and claim
+    // freshness the data does not have.
     const dates = idx.areas.map(a => a.collected).filter(Boolean);
-    const when = dates.length ? dates.sort()[0] : idx.generated;
+    const when = dates.length ? dates.sort()[0] : '—';
     el.textContent = `Duomenys surinkti ${when}. Veikia: ${names} `
       + `(${total.toLocaleString('lt-LT')} adresų). `
       + `Kitos savivaldybės dar neįkeltos.`;

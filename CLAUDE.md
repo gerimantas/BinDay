@@ -101,11 +101,24 @@ fetch may write `raw/`, and why `build_index.py`, which deleted files it had not
 is gone.
 
 ```bash
-node tools/fetch_svara.js          # Kauno r. only; --all or --regions "A,B" to widen
-python tools/fetch_ekonovus.py     # code 52 only; --codes all to widen
-python tools/build_dist.py         # raw/ -> dist/
-python tools/check_dist.py         # publish gate; must pass before committing dist/
+python tools/precheck.py                  # 0 unchanged, 10 changed, 1 could-not-tell
+node tools/fetch_svara.js                 # Kauno r. only; --all or --regions "A,B"
+python tools/fetch_ekonovus.py            # code 52 only; --codes all to widen
+node tools/fetch_dates_svara.mjs          # ~9 min, 8 concurrent
+python tools/fetch_dates_ekonovus_bulk.py # ~18 min, one request per locality
+python tools/build_dist.py                # raw/ -> dist/
+python tools/check_dist.py --previous <d> # publish gate; must pass before committing
 ```
+
+**Normally you do not run these by hand.** `.github/workflows/refresh.yml` does it
+monthly, gated by `precheck.py` so an unchanged month costs one request instead of half
+an hour. `health.yml` checks weekly that both operators still answer and that the
+committed `dist/` still passes. Run the refresh manually with
+`gh workflow run "Refresh schedules"`, or `-f force=true` to skip the pre-check.
+
+**`precheck.py` refreshes on *any* non-zero exit**, including "could not reach the
+operator". Skipping on an inconclusive check is how a stale schedule survives
+indefinitely.
 
 **The app fetches `dist/`, never an operator.** No operator endpoint sends
 `Access-Control-Allow-Origin` (verified against Švara's PDF and ICS endpoints), Švara's

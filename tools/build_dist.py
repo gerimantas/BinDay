@@ -269,7 +269,12 @@ def main():
                 sys.exit(f"FAILED: areas.json would name a missing file: {p}")
 
     write_json(os.path.join(TMP, "areas.json"),
-               {"generated": time.strftime("%Y-%m-%d"), "areas": areas_meta},
+               # No build timestamp here. Each area carries `collected`, which
+               # is when the operators were actually asked; a build date would
+               # change on every scheduled run and make an identical rebuild
+               # look like new data — a monthly commit of nothing, and a diff
+               # that is always there is never read.
+               {"areas": areas_meta},
                source="build_dist")
 
     # Carry the previous `built` timestamp forward when every area signature is
