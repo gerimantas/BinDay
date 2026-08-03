@@ -354,25 +354,34 @@ def check_against_previous(previous, areas, fail, warn):
             fail(f"{slug}: {len(gone)} addresses present in the previous build "
                  f"are missing now, e.g. {gone[:3]}")
 
-        # Compare the SET of container ids, not the row count. The operator's
-        # catalogue occasionally lists the same container at the same address
-        # twice; when it stops, the row count drops while nothing is actually
-        # lost. That fired on 2026-08-03 for 4 addresses (52-S-40002 listed
-        # twice at Ražių Rūtų g. 16, and three like it) and blocked a publish in
-        # which every real container was present.
+        # Compare WASTE TYPES per address, not container ids and not row counts.
+        # The question this check exists to answer is "would a bin stop being
+        # collected", and only the type answers it. Two ways an id-level check
+        # cried wolf on 2026-08-03, both blocking a publish in which every bin
+        # was still served:
         #
-        # A genuine loss still fails here: the id disappears from the set. What
-        # no longer fails is a duplicate collapsing, which is a fix upstream,
-        # not a regression.
+        #   - the same container listed twice at one address (Ekonovus does this
+        #     for nine rows in Kauno r.); when the duplicate stops, a row count
+        #     drops while nothing is lost
+        #   - Švara renumbering a container in place — 31 addresses in one day,
+        #     most of them gaining the same digits with a SENAS suffix
+        #     (52-MK-027475 -> 52-MK-027475SENAS). Different id, same bin, same
+        #     collection.
+        #
+        # A real loss still fails: if MIXED disappears from an address, the type
+        # is gone from the set regardless of how the ids moved.
         shrunk = []
         for k in old:
             if k not in new:
                 continue
-            lost = {r[0] for r in old[k]} - {r[0] for r in new[k]}
+            lost = {r[1] for r in old[k]} - {r[1] for r in new[k]}
+            # OTHER is not a waste stream — it is what an unrecognised or blank
+            # inventory number resolves to, so it moves in and out on its own.
+            lost.discard("OTHER")
             if lost:
                 shrunk.append((k, sorted(lost)))
         if shrunk:
-            fail(f"{slug}: {len(shrunk)} addresses lost containers, e.g. "
+            fail(f"{slug}: {len(shrunk)} addresses lost a waste type, e.g. "
                  f"{shrunk[:3]} — a bin would stop being collected")
 
         if len(new) < len(old) * 0.95:

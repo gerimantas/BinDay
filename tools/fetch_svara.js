@@ -30,6 +30,11 @@ const HEADERS = {
   accept: 'application/x-tss-framed, application/x-ndjson, application/json',
 };
 const PAGE_SIZE = 1000;          // largest accepted; a full page takes ~13 s
+// The largest subdistrict (Užliedžių) is ~7 500 containers, so 8 pages. 100 is
+// a runaway guard, not a limit — it exists because the loop now ends on a short
+// page rather than on a page count, and a server that always returned full
+// pages would otherwise spin forever.
+const MAX_PAGES = 100;
 
 const args = process.argv.slice(2);
 // Fetch output goes to raw/, which this script writes and never deletes.
@@ -108,23 +113,46 @@ const INFIX_TYPE = {
   Z: 'GREEN', ZA: 'GREEN', ZL: 'GREEN',
 };
 
-function wasteType(description, inventory) {
-  const d = String(description || '').toLowerCase();
+function typeFromText(s) {
+  const d = String(s || '').toLowerCase();
   if (d.includes('mišri')) return 'MIXED';
   if (d.includes('žali')) return 'GREEN';
   if (d.includes('pakuot')) return 'PACKAGING';
   if (d.includes('stikl')) return 'GLASS';
   if (d.includes('antrin')) return 'RECYCLABLE';
   if (d.includes('popier')) return 'PAPER';
-  // Not every number carries the municipality prefix — Kauno m. writes "MA-000017"
-  // where Kauno r. writes "52-MK-036668". Taking part [1] therefore lands on a serial
-  // number in the city and leaves the whole municipality unclassified, so scan every
-  // alphabetic segment instead of a fixed position.
+  return null;
+}
+
+function wasteType(description, inventory, plural) {
+  // Sources in strict order of trustworthiness. They must not be concatenated:
+  // `descriptionPlural` is WRONG for some containers — measured 2026-08-03,
+  // Gudobelių tak. 4 returns description "Žaliųjų atliekų" with plural
+  // "mišrių atliekų". Joining the two strings and testing "mišri" first
+  // reclassified 194 green containers as mixed while fixing 56 — a net loss
+  // that the container counts alone would not have shown, since the total was
+  // unchanged.
+  //
+  // 1. description — right almost everywhere, but sometimes a place name
+  //    ("Kauno raj. MA" here, "Kaišiadorys" in Kaišiadorys)
+  const fromDesc = typeFromText(description);
+  if (fromDesc) return fromDesc;
+
+  // 2. the inventory infix. Not every number carries the municipality prefix —
+  //    Kauno m. writes "MA-000017" where Kauno r. writes "52-MK-036668", so
+  //    taking part [1] lands on a serial number and leaves the whole
+  //    municipality unclassified. Scan every alphabetic segment instead.
   for (const part of String(inventory || '').split('-')) {
     const t = INFIX_TYPE[part.trim().toUpperCase()];
     if (t) return t;
   }
-  return 'OTHER';
+
+  // 3. descriptionPlural, last: unreliable in general (see above), but it is
+  //    the only signal left when description names a place AND the inventory
+  //    number is blank — which is how Adolfo Šapokos g. 65 (hashedId eKP4RerK)
+  //    kept its container, lost only its number, and dropped MIXED from the
+  //    address entirely.
+  return typeFromText(plural) || 'OTHER';
 }
 
 const slug = s => s.replace(/\s+/g, '-').replace(/[^\p{L}\p{N}-]/gu, '').toLowerCase();
@@ -159,12 +187,16 @@ async function main() {
     try {
       const subs = await api('/schedule/getsubdistricts?' + q({ region, search: '' }));
       const entries = [];
+      const empty = [];
       for (const { subdistrict } of subs) {
+        let subCount = 0;
         for (let page = 0; ; page++) {
           const r = await api('/schedule/getcontracts?' + q({
             region, subDistrict: subdistrict, city: '', address: '', houseNumber: '',
             search: '', pageSize: PAGE_SIZE, pageIndex: page,
           }));
+          const got = (r.data || []).length;
+          subCount += got;
           for (const c of r.data || []) {
             // A few rows come back with inventoryNumber === false rather than a string.
             // Keep them — the address and ids are still good — but never let a boolean
@@ -176,12 +208,48 @@ async function main() {
             // without this field the date fetch would need a second getcontracts call
             // per container — 57 091 extra requests for a value this response already
             // carries.
-            entries.push([c.fullAddress, inv, wasteType(c.description, inv),
+            entries.push([c.fullAddress, inv,
+                          wasteType(c.description, inv, c.descriptionPlural),
                           c.hashedId, c.wasteObjectId ?? null]);
           }
-          if (page + 1 >= (r.totalPages || 0)) break;
+          // Stop when a page comes back short, NOT when the response says it is
+          // the last page. `totalPages` is no longer present in the response —
+          // and `page + 1 >= (r.totalPages || 0)` reads an absent field as 0,
+          // which is true on page 0, so every subdistrict silently stopped after
+          // one page. Measured 2026-08-03: the Kauno r. catalogue fell from
+          // 58 477 containers to 52 483 with no error and 24 of 26 subdistricts
+          // byte-identical — Užliedžių truncated at exactly PAGE_SIZE (7 471 ->
+          // 2 000) and Vandžiogalos vanished entirely (523 -> 0).
+          //
+          // A short page cannot be faked by a missing field: it is the data
+          // itself. A full page always asks again, and the extra request at the
+          // end of an exact multiple is the price of not trusting metadata that
+          // has already disappeared once.
+          if (got < PAGE_SIZE) break;
+          if (page > MAX_PAGES) {
+            throw new Error(`${subdistrict}: still returning full pages after ` +
+              `${MAX_PAGES} — refusing to loop, the result would be incomplete`);
+          }
         }
+        // A genuinely empty subdistrict exists — Švara lists Šakių sen. and it
+        // has had 0 containers in every catalogue — so this cannot be fatal on
+        // its own. But an empty one is also how Vandžiogalos (523 containers)
+        // disappeared silently, so it must be visible, and several at once means
+        // the query shape broke rather than the countryside emptying.
+        if (!subCount) empty.push(subdistrict);
         process.stdout.write(`\r  ${region}: ${entries.length} containers   `);
+      }
+      if (empty.length) {
+        console.log(`\r  ${region}: ${empty.length} empty subdistrict(s): ` +
+                    `${empty.join(', ')}          `);
+        // One is normal (Šakių sen. has never had a container). Several at once
+        // is the query breaking, and writing that file would delete real
+        // addresses from the app.
+        if (empty.length > 1) {
+          throw new Error(`${empty.length} subdistricts returned 0 containers ` +
+            `(${empty.join(', ')}) — refusing to write a catalogue that is ` +
+            `probably truncated`);
+        }
       }
       if (!entries.length) {
         console.log(`\r  ${region}: empty, skipped                `);
