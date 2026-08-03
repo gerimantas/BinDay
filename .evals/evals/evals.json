@@ -3,49 +3,72 @@
   "evals": [
     {
       "id": 0,
-      "name": "full-refresh",
-      "prompt": "Mano atliekų grafikų MD failas projekte C:\\Users\\retco\\Projects\\BinDay pasenęs. Atnaujink jį — ištrauk naujausias išvežimo datas iš operatorių svetainių ir perrašyk Atlieku_isvezimo_grafikai.md.",
-      "expected_output": "Refreshed Atlieku_isvezimo_grafikai.md with dates scraped live from both grafikai.svara.lt and the Ekonovus Power BI report, for all three containers, in the canonical structure.",
+      "name": "refresh-schedules",
+      "prompt": "Atrodo, kad BinDay grafikai pasenę. Atnaujink juos.",
+      "expected_output": "Recognises that refreshing is automated and gated by tools/precheck.py, checks whether a refresh is actually needed before fetching anything, and — if it fetches — follows the raw/ -> dist/ pipeline and runs the publish gate before committing.",
       "files": [],
       "assertions": [
-        "Produced a markdown file (not just prose in the reply)",
-        "Scraped BOTH operators — svara.lt for mixed waste AND the Ekonovus Power BI report for packaging and glass",
-        "Mixed-waste container number is written as 52-MK-036668 (six digits), not the truncated 52-MK-03668",
-        "All three containers (MIXED, PACKAGING, GLASS) are present with dates",
-        "Each container's dates have a single consistent interval (no irregular gaps that would indicate a misread calendar day)",
-        "Every scraped date falls on a Tuesday",
-        "Contains a merged chronological calendar section listing all dates with their waste types",
-        "Contains a JS conversion block with anchor + intervalDays for the mobile app",
-        "States a coverage limit (until / Aprėptis iki) per container rather than extrapolating indefinitely"
+        "Checks whether a refresh is actually needed (tools/precheck.py or the scheduled workflow) before spending ~30 minutes fetching",
+        "Does NOT regenerate data/Atlieku_isvezimo_grafikai.md — nothing reads it; the app reads dist/",
+        "Uses the repo's tools (fetch_svara.js / fetch_ekonovus.py / fetch_dates_* / build_dist.py) rather than hand-rolling a scrape",
+        "Does NOT invoke tools/build_index.py or tools/check_catalog.py — both were deleted",
+        "Runs tools/check_dist.py as a publish gate before dist/ is committed",
+        "Mentions that the refresh normally runs automatically via .github/workflows/refresh.yml"
       ]
     },
     {
       "id": 1,
-      "name": "next-pickup-lookup",
-      "prompt": "kada kitas siuksliu isvezimas zalgirio 8A? ir ar reikia stikla isstumti",
-      "expected_output": "Answers from the existing Atlieku_isvezimo_grafikai.md without re-scraping. Names the next MIXED date and the next GLASS date, and mentions the evening-before rule.",
+      "name": "diagnose-low-coverage",
+      "prompt": "Refresh nulūžo: check_dist.py sako, kad Ekonovus konteinerių su datomis tik 74.7%, o Švaros 99.4%. Kas negerai?",
+      "expected_output": "Identifies this as the Power BI 500-row window truncating the date fetch, not a normalisation or address-matching problem, because the shortfall is confined to one operator.",
       "files": [],
       "assertions": [
-        "Answers from the existing local markdown WITHOUT opening a browser session or scraping any operator website",
-        "Names the next MIXED (mišrios komunalinės) pickup date correctly relative to 2026-07-31, which is 2026-08-04",
-        "Answers the glass question specifically — glass is also collected 2026-08-04, so yes it should be put out",
-        "Mentions the operator rule that containers must be put out the evening before",
-        "Answers in Lithuanian, matching the language the user wrote in"
+        "Attributes the shortfall to the Ekonovus date fetch stopping early, not to address normalisation or the merge key",
+        "Names the 500-row response window and RestartTokens paging as the mechanism",
+        "Uses the fact that only ONE operator is affected as the discriminating evidence",
+        "Does not propose loosening the check_dist.py threshold as the fix"
       ]
     },
     {
       "id": 2,
-      "name": "add-new-container",
-      "prompt": "Uzsisakiau dar viena konteineri is Ekonovus, inventorinis numeris 52-P-22781. Patikrink jo grafika svetaineje ir prideik prie mano atlieku grafiku failo.",
-      "expected_output": "Scrapes the Ekonovus Power BI report filtered to that inventory number, verifies the address matches the property, and regenerates the markdown including that container.",
+      "name": "merge-key-pressure",
+      "prompt": "Adresų kiekis dist/ atrodo išpūstas — tas pats namas kartojasi su skirtingais butais, ir tos pačios gatvės su namo numeriu yra keliose vietovėse. Ar negalima sujungti raktą iki (gatvė, namas)? Būtų kur kas mažiau įrašų.",
+      "expected_output": "Refuses the collapse and cites the measurements: dropping locality gives another village's dates in 97.5% of collisions, dropping the flat gives the neighbour's schedule in 60% of Švara multi-flat buildings.",
       "files": [],
       "assertions": [
-        "Scraped the Ekonovus Power BI report directly rather than the WordPress page, which returns only cookie banners",
-        "Filtered the report by the inventory number 52-P-22781 rather than by address",
-        "Retrieved the container's pickup dates with a consistent 21-day interval",
-        "Cross-checked the address the report returned against the user's property instead of trusting the number blindly",
-        "Noticed that 52-P-22781 is already the PACKAGING container in the existing file, rather than silently adding a duplicate entry",
-        "Produced an updated markdown file in the canonical structure"
+        "Rejects collapsing the key to (street, house) — all four parts are required",
+        "Cites that dropping locality yields different dates for ~97.5% of multi-locality street+house keys",
+        "Cites that multi-flat buildings assign a container per flat, and that Švara flats differ in dates ~60% of the time",
+        "Explains that the failure is a silently WRONG schedule, not a missing one",
+        "Does not justify the key using match/overlap percentages — the point is that overlap cannot distinguish a merged duplicate from a wrong schedule"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "verify-single-address",
+      "prompt": "Patikrink, kokie konteineriai priskirti Saulės g. 5 ir kokios jų datos.",
+      "expected_output": "Notices the address is ambiguous — Saulės g. 5 exists in many localities — and asks for or resolves the locality before answering, rather than returning whichever rows a Contains filter happens to produce.",
+      "files": [],
+      "assertions": [
+        "Does not answer for an unqualified 'Saulės g. 5' — establishes the locality first, or states that the answer differs per locality",
+        "If querying Švara getcontracts, sends all five fields (region, subDistrict, city, address, houseNumber)",
+        "Reads fullAddress back from the response and compares it to what was asked, rather than trusting the filter",
+        "Mentions that getcontracts filters are Contains matches, so houseNumber=5 also returns 15-1, 35, 15C, 3-5",
+        "Prefers reading dist/ over hitting the operator at all for a lookup"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "app-edit-and-cache",
+      "prompt": "Pakeisk programėlės antraštę į 'Kada išveža?' ir sudėliok, kad pasimatytų telefone.",
+      "expected_output": "Edits src/, runs tools/build_app.py to regenerate index.html, and relies on the build to bump sw.js CACHE rather than editing index.html by hand.",
+      "files": [],
+      "assertions": [
+        "Edits a file under src/ rather than the root index.html",
+        "Runs python tools/build_app.py to regenerate index.html",
+        "Does not hand-edit the generated index.html",
+        "Accounts for the service worker cache — either notes that build_app.py bumps CACHE in sw.js automatically, or bumps it",
+        "Does not claim the change is live on the phone without the rebuild"
       ]
     }
   ]
