@@ -354,8 +354,23 @@ def check_against_previous(previous, areas, fail, warn):
             fail(f"{slug}: {len(gone)} addresses present in the previous build "
                  f"are missing now, e.g. {gone[:3]}")
 
-        shrunk = [(k, len(old[k]), len(new[k])) for k in old
-                  if k in new and len(new[k]) < len(old[k])]
+        # Compare the SET of container ids, not the row count. The operator's
+        # catalogue occasionally lists the same container at the same address
+        # twice; when it stops, the row count drops while nothing is actually
+        # lost. That fired on 2026-08-03 for 4 addresses (52-S-40002 listed
+        # twice at Ražių Rūtų g. 16, and three like it) and blocked a publish in
+        # which every real container was present.
+        #
+        # A genuine loss still fails here: the id disappears from the set. What
+        # no longer fails is a duplicate collapsing, which is a fix upstream,
+        # not a regression.
+        shrunk = []
+        for k in old:
+            if k not in new:
+                continue
+            lost = {r[0] for r in old[k]} - {r[0] for r in new[k]}
+            if lost:
+                shrunk.append((k, sorted(lost)))
         if shrunk:
             fail(f"{slug}: {len(shrunk)} addresses lost containers, e.g. "
                  f"{shrunk[:3]} — a bin would stop being collected")
