@@ -105,7 +105,7 @@ python tools/precheck.py                  # 0 unchanged, 10 changed, 1 could-not
 node tools/fetch_svara.js                 # Kauno r. only; --all or --regions "A,B"
 python tools/fetch_ekonovus.py            # code 52 only; --codes all to widen
 node tools/fetch_dates_svara.mjs          # ~9 min, 8 concurrent
-python tools/fetch_dates_ekonovus_bulk.py # ~18 min, one request per locality
+python tools/fetch_dates_ekonovus_bulk.py # ~1.5 min, four requests for the area
 python tools/build_dist.py                # raw/ -> dist/
 python tools/check_dist.py --previous <d> # publish gate; must pass before committing
 ```

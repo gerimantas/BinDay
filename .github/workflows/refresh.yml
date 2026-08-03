@@ -34,10 +34,25 @@ concurrency:
 permissions:
   contents: write
 
+# Python buffers stdout when it is a pipe, which a runner's log always is. The
+# 2026-08-02 run was cancelled at the 90-minute cap during the Ekonovus date
+# fetch and the log showed 50 minutes of complete silence — not one progress
+# line, not even the script's first. Nothing had hung: the output was sitting in
+# a buffer that died with the process. A timeout you cannot see inside is
+# diagnosed by guesswork, and that run was recorded as "hung, raise the cap"
+# when it was in fact simply slower than planned.
+env:
+  PYTHONUNBUFFERED: '1'
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 90        # a full refresh measured ~30 min; this is slack
+    # Measured 2026-08-03: 13 min catalogues + 27 min Švara dates + 1.5 min
+    # Ekonovus dates = ~42 min. The 2026-08-02 run was cancelled at this cap
+    # because the Ekonovus date fetch then took ~65 min on its own; it now takes
+    # four requests. Kept at 90 rather than tightened — the margin is the point,
+    # and a cap that trips on a slow day costs a whole month's refresh.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -77,7 +92,7 @@ jobs:
         if: steps.precheck.outputs.changed == 'true' || inputs.force
         run: |
           node tools/fetch_dates_svara.mjs
-          python3 tools/fetch_dates_ekonovus_bulk.py --max-age-days 0
+          python3 tools/fetch_dates_ekonovus_bulk.py
 
       # Keep the committed build to compare against. Taken BEFORE the rebuild,
       # because build_dist.py replaces dist/ wholesale and there would be

@@ -22,6 +22,10 @@ concurrency:
   group: health-check
   cancel-in-progress: true
 
+# See refresh.yml: buffered Python output makes a cancelled run unreadable.
+env:
+  PYTHONUNBUFFERED: '1'
+
 jobs:
   probe:
     runs-on: ubuntu-latest
