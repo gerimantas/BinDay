@@ -2,49 +2,49 @@
 
 ## Status
 
-**active** — 2026-08-03 (S4)
+**active** — 2026-08-03 (S5)
 
-Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ and
-installable to a phone home screen. Answers one question — do the bins go out tonight —
-and exports the whole schedule to a calendar.
+Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/. **The published
+`dist/` is sound and untouched by this session's failures** — 40 959 addresses, every waste
+type present, gate passing. No failed run published anything, which is what the gate is for.
 
-**Multi-address now works in production**, verified against the live site in a real
-browser: any of 40 959 Kauno r. addresses resolves to its own containers and its own
-dates, offline after one load. S3 left it non-functional (no data path at all); S4 executed
-all ten steps of `.planning/PIPELINE_PLAN.md`.
+**The monthly refresh already works unattended.** It fired on its own at 05:27 on
+2026-08-03, the pre-check found nothing changed, and it stopped in 24 s. The prior note
+that the first scheduled run was due 2026-09-03 was wrong: the cron is the 3rd of every
+month.
 
-The pipeline: `data/raw/` (fetch writes, never deletes, gitignored) → `dist/` (build owns
-it, committed, served). 99.5% of 132 260 containers carry dates, collapsing to 185 shared
-schedules. A monthly workflow refreshes it behind a pre-check that costs one request when
-nothing changed; a weekly one checks both operators still answer.
+**Ekonovus dates now take four requests (~1.5 min) instead of 266 (~65 min)**, verified on
+the runner. A query costs ~10 s regardless of size — 4 rows took 12.1 s, 443 rows 13.7 s —
+so many small questions are far worse than a few large ones. The recorded "500-row hard
+cap" was never a server limit; it came from the report's own UI, and 20 000 is accepted.
 
-**The key correction of this session: the merge key is `(locality, street, house, flat)` —
-all four, verified against fetched dates rather than match rates.** Three sessions had
-treated an "88.8% overlap ceiling" as an operator problem to normalise away. Measured, it
-was mostly self-inflicted: dropping the flat accounted for 14.0 of 17.8 percentage points,
-genuine operator disagreement is 0.2%. Two recorded rules were wrong and are marked
-superseded in `DECISIONS.md` — *"a container stands at a building, not a flat"* (every
-multi-flat building gives each flat its own container; 60% of Švara ones differ in dates)
-and *"merge on street+house, locality is a display label"* (1 406 of 1 442 multi-locality
-keys have different dates). See [[wiki/bin-day/merge-key-s4]].
+**Švara's catalogue fetch is broken and NOT fixed.** `page + 1 >= (r.totalPages || 0)` read
+an absent `totalPages` as 0, so every subdistrict stopped after one page: 58 477 containers
+→ 52 483, no error, 24 of 26 subdistricts byte-identical because they fit in one page. The
+stop-on-short-page replacement restores 58 477 locally but produced 54 306 on the runner,
+so it is not understood. Full diagnosis and the ten-second probe that settles it:
+`.planning/SVARA_PAGING.md`.
 
-Four defects were found by running things rather than reading them, each silent: `hashedId`
-does not drive `getschedule`; the Power BI date query has an unpaged 500-row window that
-cost 25% of the municipality; `version.json` was itself cached, which would have broken the
-update on exactly the deploy it exists to deliver; and `cache: 'reload'` does not bypass a
-service worker, so the signature updated while the data did not.
+**Process failure worth more than the fixes.** Four ~40-minute full pipeline runs produced
+four guessed fixes; every question could have been answered by one request. The user
+stopped it. This is the same failure as S2's six blind rebuilds, already recorded in
+[[wiki/bin-day/catalogue-pipeline-lessons]] — *guessing was never cheaper than measuring* —
+and I had not read it. One concrete cost: joining `description` with `descriptionPlural`
+fixed 56 containers and broke 194, invisible in the unchanged total and visible only in
+per-type counts. The rule is now in the skill.
 
-**Prior status (S3):** measured the address→container→dates chain end to end and wrote the
-plan. Rejected the RC Address Register as the search source (53.7% of its Kauno r.
-addresses have no container). Found the multi-address feature had no data path in
-production at all — `data/catalog/` gitignored, so the live index 404'd.
+**Prior status (S4):** executed all ten steps of `.planning/PIPELINE_PLAN.md`; multi-address
+works in production. Corrected the merge key to `(locality, street, house, flat)` by
+measuring against fetched dates rather than match rates, superseding two recorded rules.
+Found four silent defects by running things rather than reading them.
 
 ## Next Tasks
 
-- **Watch the first scheduled refresh (2026-09-03, 04:17 UTC).** Never run unattended
-  end-to-end: a forced run reached "Fetch dates" and was still going at ~80 min of its
-  90-minute cap. If it times out, the fix is to split catalogues and dates into separate
-  jobs, or raise the cap. `gh run list --workflow="Refresh schedules"`.
+- **Finish the Švara paging fix — start with the three-call probe, not a full run.**
+  `fetch_svara.js` currently produces a short catalogue on the runner (54 306 vs 58 477
+  locally), so any forced refresh will be blocked by the gate. Everything needed is in
+  `.planning/SVARA_PAGING.md`: the confirmed defect, why the current fix is wrong, the
+  probe that distinguishes the remaining hypotheses, and what must not be re-derived.
 - **Migrate saved addresses from the pre-S4 shape.** Entries saved before this session hold
   Švara's full address string and no `key`, so they match on address and keep working, but
   they will never pick up new data. Re-resolve them through the index on load and mark any
@@ -54,9 +54,6 @@ production at all — `data/catalog/` gitignored, so the live index 404'd.
 - **337 addresses (0.8%) still have a container without dates.** Not investigated: whether
   the operators publish nothing for them or the parse misses them. `check_dist.py` enforces
   a 90% floor per operator, so this is visible but tolerated.
-- **Rewrite the `binday` skill — it now describes a world that no longer exists, and will
-  actively mislead.** It triggers on "atnaujink grafikus" and then instructs commands that
-  were deleted this session. Plan: `.planning/SKILL_REWRITE.md`.
 - **Second calendar reminder does not survive Google import.** Google Calendar keeps only
   the first `VALARM` from an imported ICS, so the 20:00 alert is dropped and only 17:00
   shows. Fix by creating a dedicated `BinDay` calendar in Google with two default event
@@ -75,6 +72,20 @@ production at all — `data/catalog/` gitignored, so the live index 404'd.
 
 ## Done Log
 
+- **S5:** Ekonovus dates 65 min → 1.5 min: filter on the inventory prefix and page 20 000
+  rows at a time, four requests for Kauno r. Verified on the runner and against the shipped
+  build — 132 250 pairs, none lost, every date difference explained by the sliding horizon.
+- **S5:** Set `PYTHONUNBUFFERED` in both workflows. The 2026-08-02 timeout showed 50 minutes
+  of empty log and was recorded as "hung"; it was buffered output dying with the process,
+  and the step was merely slow. Paid for itself immediately on the next failures.
+- **S5:** Publish gate now compares waste types per address, not container ids or row
+  counts — Švara renumbers in place (31 in one day, mostly a `SENAS` suffix) and Ekonovus
+  lists nine containers twice. Both directions verified.
+- **S5:** Rewrote the `binday` skill for the post-S4 world (517 → 269 lines, two new
+  `references/` files) and replaced all three evals, which asserted the single-address era
+  and demanded the `anchor + intervalDays` block the skill forbids.
+- **S5:** Fixed `_regen-index.py` writing a YAML block-scalar `>` into INDEX.md for three
+  skills.
 - **S4:** Executed all ten steps of `.planning/PIPELINE_PLAN.md`. Multi-address works in
   production: 40 959 addresses, 99.5% of containers dated, offline after one load,
   verified against the live site in a browser.
@@ -100,22 +111,6 @@ production at all — `data/catalog/` gitignored, so the live index 404'd.
   produce confident wrong output with no error.
 - **S3:** Verified GitHub Actions can reach both operators from a runner, and that neither
   operator rate-limits (200 Švara requests, 40 Ekonovus localities, zero failures).
-- **S2:** Proved both operators have anonymous bulk APIs and that no backend is needed;
-  built the catalogue tooling, the ☰ menu with saved addresses, and the redesign
-  (outlined type labels, readable contrast, orange instead of red).
-- **S2:** Fixed contrast across the app — body text was `#52525b` at **2.29:1**, half the
-  4.5:1 minimum and effectively invisible outdoors, which is where the app is used.
-- Created the app: single-file PWA, neon palette (red/yellow/green per waste type),
-  expandable schedule list, ICS export, QR scan sheet, PWA icons.
-- Created the schedule-scraping skill (then named `atlieku-grafikai`, since renamed to
-  `binday`) and hardened it through a 6-agent eval that found
-  8 real defects, including a silent bug where `firecrawl interact` without `-s` attaches
-  to another agent's browser session.
-- Extended the `firecrawl` skill with the general lessons: pinning the scrape id, the
-  concurrency deadlock, `--code` returning the last expression while `console.log` is
-  swallowed, and a `--node` example that could not have worked as written.
-- Put the 48-skill library under version control at `github.com/gerimantas/ai-skills`
-  (private). Excluded a 105 MB bundled virtualenv; the repo is 7.4 MB.
 
 ## Key Facts
 
@@ -130,15 +125,17 @@ production at all — `data/catalog/` gitignored, so the live index 404'd.
   `x-powerbi-resourcekey`, so it *is* browser-reachable. It does not change the design:
   schedules are published months ahead, so static JSON on Pages remains the delivery
   mechanism and keeps the app working with no signal.
-- **The two catalogues cannot be derived from each other, but they can be merged.** Švara's
-  Kauno r. data holds no packaging or glass; Ekonovus writes the same address differently
-  (`Juragių k. Žalgirio g. 8A` vs Švara's full official form). S3 measured the merge:
-  **88.9%** of addresses appear at both, giving 36 348 for Kauno r. Locality must stay in
-  the merge key — `Vytauto g. 85` exists in both Garliavos m. and Zapyškio mstl.
-  See [[wiki/bin-day/address-chain-s3]].
-- **The deployed app cannot load a catalogue.** `data/catalog/` is gitignored, so the live
-  `data/catalog/areas.json` is a 404; `sw.js` caches no data file; `a.schedule` is read but
-  never written. Fixed by plan steps 7–8, not by a data refresh.
+- **The two catalogues cannot be derived from each other, but they can be merged on
+  `(locality, street, house, flat)` — all four.** Švara's Kauno r. data holds no packaging
+  or glass; Ekonovus writes the same address differently. S4 measured the key against
+  fetched dates: 40 959 addresses for Kauno r. The S3 figures (88.9%, 36 348 addresses,
+  street+house key) are superseded — see [[wiki/bin-day/merge-key-s4]].
+- **Both operators truncate silently, in three different ways.** Švara's `getcontracts`
+  paging stops on an absent `totalPages` (S5, open); the Power BI date query truncates at
+  its response window with no error (S4, fixed); Ekonovus' catalogue query is not ordered
+  by municipality, so a container can be absent from the first pages. **Assert the total
+  after every fetch** — a short result is indistinguishable from the operator having less
+  data, and all three looked like normalisation misses.
 - Dates are stored as explicit lists, never `anchor + intervalDays`. Švara's schedule
   genuinely deviates — the window before 2026-08 held Monday pickups and an off-cycle
   Wednesday run on 2026-07-22, independently confirmed on the site. A computing app would
@@ -156,6 +153,48 @@ production at all — `data/catalog/` gitignored, so the live index 404'd.
   frontmatter.
 
 ## Archive
+
+### S5 — 2026-08-03
+
+Started as a skill rewrite, became a pipeline investigation, and ended with the user
+stopping me for the right reason.
+
+**The skill rewrite went cleanly** because a plan already existed: `.planning/SKILL_REWRITE.md`
+listed eight verified defects and the order to fix them, so nothing had to be re-derived.
+517 lines → 269, the Power BI and Švara call shapes moved to `references/`, and the three
+evals were replaced — all of them asserted the single-address world, and eval 0 demanded
+an `anchor + intervalDays` block that the skill explicitly forbids. A failing eval there
+meant the eval was wrong, not the skill, which makes the suite worse than absent.
+
+**The real find was in the workflow logs.** The 2026-08-02 timeout had been recorded as
+"hung at Fetch dates, split the jobs or raise the cap". Both wrong. The log showed 50
+minutes of nothing because Python buffers stdout to a pipe and the buffer died with the
+cancelled process — the step had not hung, it was fetching 266 localities one at a time.
+Measured on untouched localities: a query costs ~10 s regardless of what it returns (4 rows
+12.1 s, 443 rows 13.7 s), because the `Datos` measure is evaluated across the national
+table per request. Filtering on the inventory prefix and asking for 20 000 rows pulls all
+of Kauno r. in four requests, ~1.5 min. The recorded 500-row cap was never a server limit.
+
+**Then four consecutive ~40-minute runs, each fixing a guess.** The gate blocked every one,
+correctly, but each time about a *different* defect: duplicate Ekonovus rows collapsing;
+Švara renumbering 31 containers in place with a `SENAS` suffix; a blank `inventoryNumber`
+dropping MIXED from an address; and finally Švara's paging reading an absent `totalPages`
+as zero and taking one page per subdistrict (58 477 → 52 483, silent, with 24 of 26
+subdistricts byte-identical). The last is diagnosed but **not fixed** — the replacement
+works locally and produces 54 306 on the runner.
+
+**The user's correction is the durable output.** Three full catalogue rebuilds (13 min
+each) were spent testing behaviour in *one* subdistrict, answerable in three requests and
+ten seconds. Worst case: joining `description` with `descriptionPlural` to rescue 56
+containers broke 194 GREEN ones — `descriptionPlural` says "mišrių atliekų" for containers
+whose `description` says "Žaliųjų atliekų" — and the container total was identical, so only
+per-type counts revealed it. That is the same shape as S2's six blind rebuilds, already
+written up in [[wiki/bin-day/catalogue-pipeline-lessons]] with the line *guessing was never
+cheaper than measuring*. I had not read it. The rule now lives in the skill, and
+`.planning/SVARA_PAGING.md` records the cheap probe so the next session does not repeat the
+cycle.
+
+Nothing broken shipped: `dist/` is untouched and the gate held every time.
 
 ### S4 — 2026-08-02/03
 
@@ -201,42 +240,3 @@ Verification pattern that paid off repeatedly: **test by sabotage, not by passin
 with a message that explains why. Running the workflow's post-fetch half offline — rather
 than waiting out a 40-minute cloud run — found two more defects (a build timestamp
 causing a monthly no-op commit, and CRLF/LF churn) in seconds.
-
-### S3 — 2026-08-02
-
-A research session; no app code changed. The user repeatedly rejected reasoning from
-what was already written down, and each time that produced a correction.
-
-The chain was rebuilt from the other end. I had been measuring how many *operator*
-addresses appear in the RC Address Register (99%, which sounded excellent) when the user
-asked the inverse — how many register addresses have a container. **53.7% do not**, because
-a container belongs to a contract, not to an address, and allotment areas share communal
-bins. That killed the register as the search source. Merging the two operator catalogues
-instead gives 36 348 addresses for Kauno r., and makes "address not found" impossible by
-construction.
-
-Three claims recorded in the vault turned out to be wrong or too narrow, and were
-superseded rather than deleted: Ekonovus dates *can* be fetched in bulk (per locality, once
-a `StartsWith` filter is applied — the "too slow" finding held only for the unfiltered
-query), Švara returns dates as JSON without the PDF (`getschedule` needs `tenantId`; without
-it the server answers 200 with an empty result rather than an error), and the two operators
-*can* be joined on address (88.9%).
-
-I also produced a confident wrong answer mid-session and had to retract it: filtering Power
-BI on `ScheduleDates.Date` returned 35 481 containers "served on 2026-08-04" in 5 s. It was
-a cross product — that table is a bare calendar with no relationship to any container. The
-tell was there (every date populated, Sundays included, counts pinned to the window) and I
-reported it as a result anyway. What caught it was a cross-check against a single
-container's own schedule. Recorded in `DECISIONS.md`: **Power BI's
-`InvalidUnconstrainedJoin` not firing does not prove a join is valid** — `Adresas`+`Date`
-does not raise it and is exactly the fabricating query.
-
-The plan was then audited against the code rather than against these notes, on the user's
-instruction, and six of its own claims fell — including that the deployed app cannot load a
-catalogue at all (`data/catalog/` gitignored, live URL 404s, `sw.js` caches no data,
-`a.schedule` read but never written). The multi-address feature has no data path in
-production, which reordered the plan: publishing `dist/` is not the last step, it is what
-makes the existing UI work.
-
-Same failure shape as S2's, one level up: S2 assumed a *code* meant what it means
-elsewhere; S3 assumed a *mechanism* worked because it was written down.

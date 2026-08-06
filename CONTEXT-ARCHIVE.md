@@ -3,6 +3,45 @@
 Older session entries, moved out of `CONTEXT.md` to keep the session-start injection small.
 Newest first.
 
+### S3 — 2026-08-02
+
+A research session; no app code changed. The user repeatedly rejected reasoning from
+what was already written down, and each time that produced a correction.
+
+The chain was rebuilt from the other end. I had been measuring how many *operator*
+addresses appear in the RC Address Register (99%, which sounded excellent) when the user
+asked the inverse — how many register addresses have a container. **53.7% do not**, because
+a container belongs to a contract, not to an address, and allotment areas share communal
+bins. That killed the register as the search source. Merging the two operator catalogues
+instead gives 36 348 addresses for Kauno r., and makes "address not found" impossible by
+construction.
+
+Three claims recorded in the vault turned out to be wrong or too narrow, and were
+superseded rather than deleted: Ekonovus dates *can* be fetched in bulk (per locality, once
+a `StartsWith` filter is applied — the "too slow" finding held only for the unfiltered
+query), Švara returns dates as JSON without the PDF (`getschedule` needs `tenantId`; without
+it the server answers 200 with an empty result rather than an error), and the two operators
+*can* be joined on address (88.9%).
+
+I also produced a confident wrong answer mid-session and had to retract it: filtering Power
+BI on `ScheduleDates.Date` returned 35 481 containers "served on 2026-08-04" in 5 s. It was
+a cross product — that table is a bare calendar with no relationship to any container. The
+tell was there (every date populated, Sundays included, counts pinned to the window) and I
+reported it as a result anyway. What caught it was a cross-check against a single
+container's own schedule. Recorded in `DECISIONS.md`: **Power BI's
+`InvalidUnconstrainedJoin` not firing does not prove a join is valid** — `Adresas`+`Date`
+does not raise it and is exactly the fabricating query.
+
+The plan was then audited against the code rather than against these notes, on the user's
+instruction, and six of its own claims fell — including that the deployed app cannot load a
+catalogue at all (`data/catalog/` gitignored, live URL 404s, `sw.js` caches no data,
+`a.schedule` read but never written). The multi-address feature has no data path in
+production, which reordered the plan: publishing `dist/` is not the last step, it is what
+makes the existing UI work.
+
+Same failure shape as S2's, one level up: S2 assumed a *code* meant what it means
+elsewhere; S3 assumed a *mechanism* worked because it was written down.
+
 ### S2 — 2026-08-01/02
 
 Started by renaming the skill, then turned into the multi-address question and stayed
