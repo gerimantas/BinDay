@@ -5,9 +5,9 @@
  *   node tools/fetch_dates_svara.mjs --limit 50 --dry-run  # sample without writing raw/
  *
  * Švara has no bulk date endpoint: getschedule takes one wasteObjectId. The
- * catalogue does expose scheduleIds, though, and objects with the same ID set
- * return identical published dates. Fetch one representative per schedule group
- * and fan its dates back out to every wasteObjectId in that group.
+ * catalogue does expose scheduleIds, though, and most objects with the same ID set
+ * return identical published dates. Fetch two representatives per shared group: fan
+ * matching dates out, and fall back to exact per-object calls for a mixed group.
  *
  * wasteObjectId comes from the catalogue in raw/. hashedId does NOT work here —
  * measured: getschedule returns an empty result for it under every parameter
@@ -143,11 +143,10 @@ if (!existsSync(rawPath)) {
 } else {
   const raw = JSON.parse(readFileSync(rawPath, 'utf8'));
 
-  // The catalogue exposes the schedule IDs behind every waste object. Objects with the
-  // same normalized ID set return the same published dates (verified across multiple
-  // single- and multi-schedule groups), so fetch one representative and fan the result
-  // back out by wasteObjectId. Old catalogues lack field 6 and safely fall back to one
-  // request per object.
+  // The catalogue exposes the schedule IDs behind every waste object. Most objects with
+  // the same normalized ID set return the same published dates. Verify each shared group
+  // with a second representative; the few mixed groups fall back to exact per-object
+  // calls. Old catalogues lack field 6 and safely fall back to one request per object.
   const byObject = new Map();
   const scheduleKeyByObject = new Map();
   for (const [address, inv, type, hashedId, wasteObjectId, scheduleIds] of raw.entries) {
@@ -170,7 +169,8 @@ if (!existsSync(rawPath)) {
       'run tools/fetch_svara.js before fetching dates');
     process.exit(2);
   }
-  let requests = [...grouped.values()].map(ids => ({ representative: ids[0], ids }));
+  let requests = [...grouped.entries()].map(([key, ids]) =>
+    ({ key, representative: ids[0], ids }));
   if (objectId) requests = [{ representative: objectId, ids: [objectId] }];
   if (limit) requests = requests.slice(0, limit);
   const selectedObjects = requests.reduce((n, request) => n + request.ids.length, 0);
@@ -182,6 +182,8 @@ if (!existsSync(rawPath)) {
   const failed = [];
   let done = 0;
   let abort = false;
+  let expandedGroups = 0;
+  let expandedObjects = 0;
   const t0 = Date.now();
 
   let cursor = 0;
@@ -197,10 +199,19 @@ if (!existsSync(rawPath)) {
           const expected = JSON.stringify([...published].sort());
           const actual = JSON.stringify([...witness].sort());
           if (actual !== expected) {
-            throw new Error(`scheduleIds grouping mismatch for ${id}/${witnessId}`);
+            expandedGroups++;
+            expandedObjects += request.ids.length;
+            console.warn(`   scheduleIds ${request.key} is mixed; fetching all ` +
+              `${request.ids.length} objects exactly`);
+            dates[id] = published;
+            dates[witnessId] = witness;
+            for (const object of request.ids.slice(2)) dates[object] = await schedule(object);
+          } else {
+            for (const object of request.ids) dates[object] = published;
           }
+        } else {
+          dates[id] = published;
         }
-        for (const object of request.ids) dates[object] = published;
       } catch (e) {
         const failure = { id, objects: request.ids.length,
           error: String(e.message || e).slice(0, 240) };
@@ -234,6 +245,7 @@ if (!existsSync(rawPath)) {
   console.log(`\n${withDates}/${selectedObjects} selected objects have dates; ` +
     `${done}/${requests.length} groups processed, ${failed.length} failed, ` +
     `${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  console.log(`${expandedGroups} mixed groups expanded to ${expandedObjects} exact objects`);
   if (dryRun) console.log('dry run - raw dates were not written');
   if (failed.length) {
     process.exitCode = 1;
