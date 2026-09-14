@@ -328,6 +328,21 @@
     text-align: center;
   }
   footer .warn { color: var(--accent-soon); }
+  footer .monitor {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-bottom: 3px;
+    color: var(--text-secondary);
+  }
+  footer .monitor span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--glass);
+    box-shadow: 0 0 7px var(--glass-glow);
+  }
 
   @media (min-width: 560px) {
     body { max-width: 520px; margin: 0 auto; }

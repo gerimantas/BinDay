@@ -22,6 +22,7 @@ const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r
    became getSchedule(): a value that changes with the active address must not
    be a binding other modules captured at load time. */
 const DEFAULT_COLLECTED = '2026-09-14';
+const DEFAULT_CHECKED = '2026-09-14';
 let collected = DEFAULT_COLLECTED;
 
 function getCollected() {
@@ -30,6 +31,10 @@ function getCollected() {
 
 function setCollected(date) {
   collected = date || DEFAULT_COLLECTED;
+}
+
+function getLastChecked() {
+  return DEFAULT_CHECKED;
 }
 
 /* The schedule shipped with the app — the default shown when no saved address is
@@ -80,6 +85,11 @@ let activeSchedule = DEFAULT_SCHEDULE;
 
 function getSchedule() {
   return activeSchedule;
+}
+
+function isMonitoredSchedule() {
+  const ids = new Set(activeSchedule.map(container => container.id));
+  return ['52-MK-036668', '52-P-22781', '52-S-24716'].every(id => ids.has(id));
 }
 
 /* Pass no argument (or an empty list) to fall back to the shipped schedule. The

@@ -346,6 +346,21 @@
     text-align: center;
   }
   footer .warn { color: var(--accent-soon); }
+  footer .monitor {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-bottom: 3px;
+    color: var(--text-secondary);
+  }
+  footer .monitor span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--glass);
+    box-shadow: 0 0 7px var(--glass-glow);
+  }
 
   @media (min-width: 560px) {
     body { max-width: 520px; margin: 0 auto; }
@@ -625,6 +640,7 @@ const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r
    became getSchedule(): a value that changes with the active address must not
    be a binding other modules captured at load time. */
 const DEFAULT_COLLECTED = '2026-09-14';
+const DEFAULT_CHECKED = '2026-09-14';
 let collected = DEFAULT_COLLECTED;
 
 function getCollected() {
@@ -633,6 +649,10 @@ function getCollected() {
 
 function setCollected(date) {
   collected = date || DEFAULT_COLLECTED;
+}
+
+function getLastChecked() {
+  return DEFAULT_CHECKED;
 }
 
 /* The schedule shipped with the app — the default shown when no saved address is
@@ -683,6 +703,11 @@ let activeSchedule = DEFAULT_SCHEDULE;
 
 function getSchedule() {
   return activeSchedule;
+}
+
+function isMonitoredSchedule() {
+  const ids = new Set(activeSchedule.map(container => container.id));
+  return ['52-MK-036668', '52-P-22781', '52-S-24716'].every(id => ids.has(id));
 }
 
 /* Pass no argument (or an empty list) to fall back to the shipped schedule. The
@@ -755,6 +780,9 @@ function render(now) {
   const calendar = buildCalendar();
   const upcoming = calendar.filter(e => e.iso >= today);
   const app = document.getElementById('app');
+  const monitor = isMonitoredSchedule()
+    ? `<div class="monitor"><span aria-hidden="true"></span>Stebėjimas aktyvus · tikrinta ${getLastChecked()}</div>`
+    : '';
 
   if (!upcoming.length) {
     app.innerHTML = `
@@ -763,7 +791,7 @@ function render(now) {
         <div class="days" style="font-size:30px">Reikia atnaujinti</div>
         <div class="date">Paskutinė data: ${calendar.length ? calendar[calendar.length - 1].iso : '—'}</div>
       </div>
-      <footer>Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
+      <footer>${monitor}Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
     return;
   }
 
@@ -867,6 +895,7 @@ function render(now) {
   // "Konteinerius paruošti iš vakaro" moved into the hero, where it is the
   // instruction rather than a footnote. The footer keeps only provenance.
   html += `<footer>
+    ${monitor}
     Duomenys surinkti ${getCollected()}
     ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
   </footer>`;

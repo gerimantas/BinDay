@@ -124,6 +124,10 @@ def main() -> int:
               for inventory in INVENTORIES}
     changed = any(merged[inventory] != sorted(set(old_by_inventory[inventory]))
                   for inventory in INVENTORIES)
+    text, checked_count = re.subn(r"const DEFAULT_CHECKED = '\d{4}-\d{2}-\d{2}';",
+                                  f"const DEFAULT_CHECKED = '{today}';", text)
+    if checked_count != 1:
+        raise RuntimeError("could not update the last successful check date")
     if changed:
         text = re.sub(r"const DEFAULT_COLLECTED = '\d{4}-\d{2}-\d{2}';",
                       f"const DEFAULT_COLLECTED = '{today}';", text)

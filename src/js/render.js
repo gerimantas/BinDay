@@ -7,6 +7,9 @@ function render(now) {
   const calendar = buildCalendar();
   const upcoming = calendar.filter(e => e.iso >= today);
   const app = document.getElementById('app');
+  const monitor = isMonitoredSchedule()
+    ? `<div class="monitor"><span aria-hidden="true"></span>Stebėjimas aktyvus · tikrinta ${getLastChecked()}</div>`
+    : '';
 
   if (!upcoming.length) {
     app.innerHTML = `
@@ -15,7 +18,7 @@ function render(now) {
         <div class="days" style="font-size:30px">Reikia atnaujinti</div>
         <div class="date">Paskutinė data: ${calendar.length ? calendar[calendar.length - 1].iso : '—'}</div>
       </div>
-      <footer>Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
+      <footer>${monitor}Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
     return;
   }
 
@@ -119,6 +122,7 @@ function render(now) {
   // "Konteinerius paruošti iš vakaro" moved into the hero, where it is the
   // instruction rather than a footnote. The footer keeps only provenance.
   html += `<footer>
+    ${monitor}
     Duomenys surinkti ${getCollected()}
     ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
   </footer>`;
