@@ -116,7 +116,9 @@ weekly (one Švara container and two Ekonovus containers) and validates the comm
 not enumerate municipalities, catalogues, or every container schedule. Run the bulk tools
 above only when the user explicitly requests a wider rebuild.
 
-**`precheck.py` is monitoring-only.** Exit 10 means the Žalgirio g. 8A Ekonovus dates
+**`precheck.py` is monitoring-only.** The scheduled GitHub workflow instead runs
+`tools/update_zalgirio_schedule.py`, which fetches and publishes only the three resolved
+Žalgirio g. 8A containers. Exit 10 from the precheck means the Ekonovus dates
 changed; exit 1 means the operator could not be checked. Neither result starts a bulk
 refresh.
 

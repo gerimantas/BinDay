@@ -76,6 +76,12 @@ const schedule = await api('/schedule/getschedule?' + q({
   houseNumber: '-', pageSize: 100, pageIndex: 0,
 }));
 const dates = (schedule.result || []).map(d => d.dateFmt);
+if (process.argv.includes('--json')) {
+  console.log('SCHEDULE_JSON=' + JSON.stringify({
+    inventory: row.inventoryNumber,
+    dates,
+  }));
+}
 console.log(`schedule: ${dates.length} dates in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 console.log(`  first six: ${dates.slice(0, 6).join(', ')}`);
 

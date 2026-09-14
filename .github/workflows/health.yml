@@ -1,4 +1,4 @@
-name: Žalgirio 8A schedule check
+name: Žalgirio 8A schedule update
 
 # Does Žalgirio g. 8A in Juragiai still have current schedules at both operators,
 # and does the committed dist/ still hold?
@@ -17,8 +17,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: health-check
+  group: zalgirio-8a-schedule-update
   cancel-in-progress: true
+
+permissions:
+  contents: write
 
 # Keep Python output visible if a probe is cancelled.
 env:
@@ -55,16 +58,23 @@ jobs:
           npm install seroval --no-save --silent
           node .github/workflows/probe_svara.mjs
 
-      # Compare only the app's own Žalgirio g. 8A witness containers. A changed
-      # horizon raises a warning for manual review; it never starts a bulk fetch.
-      - name: Shipped dates still match the operators
+      - name: Update only Žalgirio g. 8A
+        run: python3 tools/update_zalgirio_schedule.py
+
+      - name: Rebuild and verify
         run: |
-          set +e
-          python3 tools/precheck.py
-          code=$?
-          set -e
-          case "$code" in
-            0)  echo "unchanged" ;;
-            10) echo "::warning::Žalgirio g. 8A has newer operator dates. Review and publish manually if needed." ;;
-            *)  echo "::error::The pre-check could not reach an operator."; exit 1 ;;
-          esac
+          python3 tools/build_app.py
+          python3 tools/build_app.py --check
+          python3 tools/check_dist.py
+
+      - name: Publish changed dates
+        run: |
+          if git diff --quiet; then
+            echo "Schedules already contain every published date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/data.js index.html sw.js dist/kauno-r-sav/data.json dist/version.json
+          git commit -m "Update Žalgirio 8A schedules"
+          git push

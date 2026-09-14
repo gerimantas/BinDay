@@ -55,30 +55,19 @@ re-importing updates events instead of duplicating them.
 
 ## Updating the schedule
 
+The weekly GitHub workflow automatically fetches, verifies, and publishes every date for
+the three resolved Žalgirio g. 8A containers. It never scans other addresses or
+municipalities. `tools/update_zalgirio_schedule.py` is the same focused updater for a
+manual run.
+
 Dates are hardcoded in `index.html` under `CONTAINERS`, each with an `until` horizon.
 Past that date the app says the schedule needs refreshing rather than inventing dates.
 Coverage differs per operator — Švara publishes a rolling window, Ekonovus a fixed
 forward count — so one container expiring before the others is normal.
 
-To refresh, use the `binday` skill (`C:\Users\retco\.ai-skills\binday`), which handles both
-operators and regenerates `data/Atlieku_isvezimo_grafikai.md`.
-
-Švara needs no browser at all — it serves the whole 12-month calendar as an
-unauthenticated PDF, which the skill parses in about two seconds:
-
-```bash
-curl -s "https://grafikai.svara.lt/api/download/EKzJW7DK" -o schedule.pdf
-python <skill>/scripts/svara_from_pdf.py schedule.pdf
-```
-
-Ekonovus has no equivalent — its schedule lives inside a Power BI embed and has to be
-driven in a browser.
-
-After changing the dates, **bump `CACHE` in `sw.js`** — otherwise installed clients keep
-serving the old schedule from cache.
-
-**Pending as of 2026-07-31:** Švara has extended MIXED to 2027-10-12, six dates beyond
-what this repo currently records.
+The updater queries Švara's resolved waste object and Ekonovus' two resolved inventory
+numbers directly. After a change, `tools/build_app.py` rebuilds the app and bumps the
+service-worker cache so installed clients receive the new schedule.
 
 ## Why it serves one address
 
