@@ -50,15 +50,15 @@ jobs:
     # Measured 2026-08-03: 13 min catalogues + 27 min Švara dates + 1.5 min
     # Ekonovus dates = ~42 min. The 2026-08-02 run was cancelled at this cap
     # because the Ekonovus date fetch then took ~65 min on its own; it now takes
-    # four requests. Kept at 90 rather than tightened — the margin is the point,
-    # and a cap that trips on a slow day costs a whole month's refresh.
+    # four requests. Švara dates are now fetched once per published schedule ID
+    # group rather than once per waste object, so 90 minutes remains ample margin.
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install seroval
         run: npm install seroval --no-save --silent
@@ -91,6 +91,9 @@ jobs:
       - name: Fetch dates
         if: steps.precheck.outputs.changed == 'true' || inputs.force
         run: |
+          # Fail early, with useful HTTP errors, if the per-schedule endpoint
+          # is broadly unhealthy instead of spending the entire job timeout on it.
+          node tools/fetch_dates_svara.mjs --limit 20 --dry-run
           node tools/fetch_dates_svara.mjs
           python3 tools/fetch_dates_ekonovus_bulk.py
 

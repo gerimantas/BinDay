@@ -2,23 +2,25 @@
 """Does Ekonovus' Power BI answer from a GitHub runner?
 
 Asks for one locality with dates — the query shape the pipeline would actually use — and
-checks the answer against the two containers already in the app. Exits non-zero on any
-failure so the workflow step goes red rather than passing on an empty result.
+checks that both witness containers return current dates at the correct address. Exact
+dates are not pinned because the operator's rolling window drops past dates naturally.
 """
 
 import gzip
 import json
+import re
 import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import date
 
 RESOURCE_KEY = "d86dc3d4-e915-4460-b12e-c925d3ae6c75"
 URL = ("https://wabi-west-europe-d-primary-api.analysis.windows.net"
        "/public/reports/querydata?synchronous=true")
 TEMPLATE = "tools/pbi_dates_template.json"
 LOCALITY = "Juragių k. "
-EXPECT = {"52-P-22781": "2026-08-04", "52-S-24716": "2027-07-06"}
+EXPECTED_INVENTORIES = {"52-P-22781", "52-S-24716"}
 
 sys.path.insert(0, "tools")
 from pbi_decode import decode  # noqa: E402
@@ -91,22 +93,27 @@ print(f"OK: {len(rows)} rows in {elapsed:.1f}s")
 
 found = {}
 for address, inventory, dates in rows:
-    for number in EXPECT:
+    for number in EXPECTED_INVENTORIES:
         if inventory and number in str(inventory):
             found[number] = (address, str(dates))
 
 failures = []
-for number, expected_date in EXPECT.items():
+today = date.today().isoformat()
+for number in sorted(EXPECTED_INVENTORIES):
     if number not in found:
         failures.append(f"{number}: not returned")
         continue
     address, dates = found[number]
-    mark = "OK " if expected_date in dates else "BAD"
-    print(f"  {mark} {number} @ {address}: {dates[:70]}")
-    if expected_date not in dates:
-        failures.append(f"{number}: expected {expected_date}, absent")
+    current_dates = sorted(d for d in re.findall(r"20\d\d-\d\d-\d\d", dates)
+                           if d >= today)
+    mark = "OK " if current_dates else "BAD"
+    print(f"  {mark} {number} @ {address}: {', '.join(current_dates[:6])}")
+    if not current_dates:
+        failures.append(f"{number}: no date on or after {today}")
+    if not str(address).startswith(LOCALITY.strip()):
+        failures.append(f"{number}: wrong address returned: {address}")
 
 if failures:
     print("FAIL: " + "; ".join(failures))
     sys.exit(1)
-print("Ekonovus reachable from this runner, dates match the shipped app.")
+print("Ekonovus reachable from this runner and both witness containers have current dates.")

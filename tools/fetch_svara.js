@@ -80,8 +80,9 @@ async function api(apiPath, attempt = 0) {
     const body = plain(await res.json());
     // `error` is a boolean here and is `true` on SUCCESS — it is not an error object.
     // A real failure arrives as an object carrying `message` (e.g. a $TSR/Error node).
-    if (body?.error && typeof body.error === 'object' && body.error.message) {
-      throw new Error(String(body.error.message).slice(0, 140));
+    if (body?.error && typeof body.error === 'object') {
+      const detail = body.error.message || body.error.detail || body.error.title;
+      throw new Error(String(detail || JSON.stringify(body.error)).slice(0, 140));
     }
     if (body?.result === undefined) {
       throw new Error('no result field: ' + JSON.stringify(body).slice(0, 140));
@@ -210,7 +211,8 @@ async function main() {
             // carries.
             entries.push([c.fullAddress, inv,
                           wasteType(c.description, inv, c.descriptionPlural),
-                          c.hashedId, c.wasteObjectId ?? null]);
+                          c.hashedId, c.wasteObjectId ?? null,
+                          Array.isArray(c.scheduleIds) ? c.scheduleIds : []]);
           }
           // Stop when a page comes back short, NOT when the response says it is
           // the last page. `totalPages` is no longer present in the response —

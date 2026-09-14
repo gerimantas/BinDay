@@ -63,7 +63,8 @@ if (!row) {
   console.log('FAIL: getcontracts returned no rows — reachable but answering empty');
   process.exit(1);
 }
-console.log(`OK: ${row.fullAddress} / ${row.inventoryNumber} / wasteObjectId=${row.wasteObjectId}`);
+console.log(`OK: ${row.fullAddress} / ${row.inventoryNumber} / wasteObjectId=${row.wasteObjectId}` +
+  ` / scheduleIds=${JSON.stringify(row.scheduleIds || [])}`);
 
 if (row.inventoryNumber !== EXPECT_INVENTORY) {
   console.log(`FAIL: expected ${EXPECT_INVENTORY}, got ${row.inventoryNumber}`);
@@ -78,11 +79,10 @@ const dates = (schedule.result || []).map(d => d.dateFmt);
 console.log(`schedule: ${dates.length} dates in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 console.log(`  first six: ${dates.slice(0, 6).join(', ')}`);
 
-if (!dates.length) {
-  console.log('FAIL: empty schedule — tenantId or wasteObjectId rejected');
+const today = new Date().toISOString().slice(0, 10);
+const currentDates = dates.filter(d => d >= today);
+if (!currentDates.length) {
+  console.log(`FAIL: no date on or after ${today} - tenantId or wasteObjectId rejected`);
   process.exit(1);
 }
-// The published window genuinely deviates; this Wednesday run is the canary that the
-// runner receives real published dates rather than a smoothed or cached substitute.
-console.log(`  off-cycle 2026-07-22 present: ${dates.includes('2026-07-22')}`);
 console.log('Švara reachable from this runner.');

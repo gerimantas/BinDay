@@ -11,3 +11,4 @@ data/raw/
 # Half-written files from an interrupted atomic write. They are removed by the writer
 # itself; this is belt and braces so one can never be committed.
 .tmp-*
+.code-review-graph/
