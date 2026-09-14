@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Does Ekonovus' Power BI answer from a GitHub runner?
 
-Asks for one locality with dates — the query shape the pipeline would actually use — and
+Asks for the app's one monitored address with dates and
 checks that both witness containers return current dates at the correct address. Exact
 dates are not pinned because the operator's rolling window drops past dates naturally.
 """
@@ -19,7 +19,7 @@ RESOURCE_KEY = "d86dc3d4-e915-4460-b12e-c925d3ae6c75"
 URL = ("https://wabi-west-europe-d-primary-api.analysis.windows.net"
        "/public/reports/querydata?synchronous=true")
 TEMPLATE = "tools/pbi_dates_template.json"
-LOCALITY = "Juragių k. "
+ADDRESS = "Juragių k. Žalgirio g. 8A"
 EXPECTED_INVENTORIES = {"52-P-22781", "52-S-24716"}
 
 sys.path.insert(0, "tools")
@@ -60,10 +60,10 @@ cmd["Query"]["Select"] = [
      "Name": "m"},
 ]
 cmd["Query"]["Where"] = cmd["Query"]["Where"] + [
-    {"Condition": {"StartsWith": {
+    {"Condition": {"Contains": {
         "Left": {"Column": {"Expression": {"SourceRef": {"Source": "w"}},
                             "Property": "Adresas"}},
-        "Right": {"Literal": {"Value": f"'{LOCALITY}'"}}}}},
+        "Right": {"Literal": {"Value": f"'{ADDRESS}'"}}}}},
 ]
 cmd["Binding"] = {
     "Primary": {"Groupings": [{"Projections": [0, 1, 2]}]},
@@ -110,7 +110,7 @@ for number in sorted(EXPECTED_INVENTORIES):
     print(f"  {mark} {number} @ {address}: {', '.join(current_dates[:6])}")
     if not current_dates:
         failures.append(f"{number}: no date on or after {today}")
-    if not str(address).startswith(LOCALITY.strip()):
+    if str(address).strip() != ADDRESS:
         failures.append(f"{number}: wrong address returned: {address}")
 
 if failures:

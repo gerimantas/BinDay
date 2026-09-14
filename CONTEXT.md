@@ -8,22 +8,19 @@ Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/. **T
 `dist/` is sound and untouched by this session's failures** — 40 959 addresses, every waste
 type present, gate passing. No failed run published anything, which is what the gate is for.
 
-**The monthly refresh already works unattended.** It fired on its own at 05:27 on
-2026-08-03, the pre-check found nothing changed, and it stopped in 24 s. The prior note
-that the first scheduled run was due 2026-09-03 was wrong: the cron is the 3rd of every
-month.
+**Bulk refresh automation was removed on 2026-09-14 by user decision.** GitHub now monitors
+only Žalgirio g. 8A in Juragiai: one Švara and two Ekonovus containers. A changed horizon
+raises a warning for manual review and never launches municipality-wide catalogue or date
+fetches.
 
 **Ekonovus dates now take four requests (~1.5 min) instead of 266 (~65 min)**, verified on
 the runner. A query costs ~10 s regardless of size — 4 rows took 12.1 s, 443 rows 13.7 s —
 so many small questions are far worse than a few large ones. The recorded "500-row hard
 cap" was never a server limit; it came from the report's own UI, and 20 000 is accepted.
 
-**Švara's catalogue fetch is broken and NOT fixed.** `page + 1 >= (r.totalPages || 0)` read
-an absent `totalPages` as 0, so every subdistrict stopped after one page: 58 477 containers
-→ 52 483, no error, 24 of 26 subdistricts byte-identical because they fit in one page. The
-stop-on-short-page replacement restores 58 477 locally but produced 54 306 on the runner,
-so it is not understood. Full diagnosis and the ten-second probe that settles it:
-`.planning/SVARA_PAGING.md`.
+**The bulk Švara pipeline is dormant by design.** Its catalogue paging investigation remains
+recorded in `.planning/SVARA_PAGING.md`, but it is no longer an active task because scheduled
+and manually dispatchable bulk refresh automation has been removed.
 
 **Process failure worth more than the fixes.** Four ~40-minute full pipeline runs produced
 four guessed fixes; every question could have been answered by one request. The user
@@ -40,11 +37,6 @@ Found four silent defects by running things rather than reading them.
 
 ## Next Tasks
 
-- **Finish the Švara paging fix — start with the three-call probe, not a full run.**
-  `fetch_svara.js` currently produces a short catalogue on the runner (54 306 vs 58 477
-  locally), so any forced refresh will be blocked by the gate. Everything needed is in
-  `.planning/SVARA_PAGING.md`: the confirmed defect, why the current fix is wrong, the
-  probe that distinguishes the remaining hypotheses, and what must not be re-derived.
 - **Migrate saved addresses from the pre-S4 shape.** Entries saved before this session hold
   Švara's full address string and no `key`, so they match on address and keep working, but
   they will never pick up new data. Re-resolve them through the index on load and mark any

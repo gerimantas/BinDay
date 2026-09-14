@@ -1,15 +1,13 @@
-name: Health check
+name: Žalgirio 8A schedule check
 
-# Are both operators still reachable, and does the committed dist/ still hold?
+# Does Žalgirio g. 8A in Juragiai still have current schedules at both operators,
+# and does the committed dist/ still hold?
 #
 # Started life as a throwaway probe answering whether a GitHub runner could
 # reach either operator at all. It could: egress 172.208.13.80, and Ekonovus
 # answered faster there (0.6 s) than locally (9.4 s). That question is settled,
-# so the file now earns its place as a cheap standing check — it runs weekly and
-# fails loudly if an operator changes shape, months before the monthly refresh
-# would have discovered it.
-#
-# The refresh itself lives in refresh.yml.
+# so the file now earns its place as a cheap standing check. It intentionally
+# probes this one address only; bulk catalogue and schedule refreshes are disabled.
 
 on:
   schedule:
@@ -22,7 +20,7 @@ concurrency:
   group: health-check
   cancel-in-progress: true
 
-# See refresh.yml: buffered Python output makes a cancelled run unreadable.
+# Keep Python output visible if a probe is cancelled.
 env:
   PYTHONUNBUFFERED: '1'
 
@@ -57,9 +55,8 @@ jobs:
           npm install seroval --no-save --silent
           node .github/workflows/probe_svara.mjs
 
-      # The shipped dates must still match what the operators say. This is the
-      # same comparison the monthly pre-check makes, run weekly so a
-      # republished year surfaces early rather than at the next refresh.
+      # Compare only the app's own Žalgirio g. 8A witness containers. A changed
+      # horizon raises a warning for manual review; it never starts a bulk fetch.
       - name: Shipped dates still match the operators
         run: |
           set +e
@@ -68,6 +65,6 @@ jobs:
           set -e
           case "$code" in
             0)  echo "unchanged" ;;
-            10) echo "::warning::The operators have republished — dist/ is stale. Run the Refresh schedules workflow." ;;
+            10) echo "::warning::Žalgirio g. 8A has newer operator dates. Review and publish manually if needed." ;;
             *)  echo "::error::The pre-check could not reach an operator."; exit 1 ;;
           esac

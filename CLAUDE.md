@@ -110,15 +110,15 @@ python tools/build_dist.py                # raw/ -> dist/
 python tools/check_dist.py --previous <d> # publish gate; must pass before committing
 ```
 
-**Normally you do not run these by hand.** `.github/workflows/refresh.yml` does it
-monthly, gated by `precheck.py` so an unchanged month costs one request instead of half
-an hour. `health.yml` checks weekly that both operators still answer and that the
-committed `dist/` still passes. Run the refresh manually with
-`gh workflow run "Refresh schedules"`, or `-f force=true` to skip the pre-check.
+**Bulk refresh is deliberately not automated.** `health.yml` checks only Žalgirio g. 8A
+weekly (one Švara container and two Ekonovus containers) and validates the committed
+`dist/`. If that address gains newer dates it raises a warning for manual review; it does
+not enumerate municipalities, catalogues, or every container schedule. Run the bulk tools
+above only when the user explicitly requests a wider rebuild.
 
-**`precheck.py` refreshes on *any* non-zero exit**, including "could not reach the
-operator". Skipping on an inconclusive check is how a stale schedule survives
-indefinitely.
+**`precheck.py` is monitoring-only.** Exit 10 means the Žalgirio g. 8A Ekonovus dates
+changed; exit 1 means the operator could not be checked. Neither result starts a bulk
+refresh.
 
 **The app fetches `dist/`, never an operator.** No operator endpoint sends
 `Access-Control-Allow-Origin` (verified against Švara's PDF and ICS endpoints), Švara's

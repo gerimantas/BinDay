@@ -1,24 +1,19 @@
 #!/usr/bin/env python3
-"""Has anything actually changed at the operators?
+"""Has the monitored Žalgirio g. 8A schedule changed at the operators?
 
-    python tools/precheck.py            # exit 0 = unchanged, 10 = refresh needed
+    python tools/precheck.py            # exit 0 = unchanged, 10 = manual review needed
 
-Fetches one known container per operator and compares its schedule with what
-dist/ already ships. Unchanged means the scheduled run stops in seconds instead
-of spending ~30 minutes re-asking for data that is identical.
+Fetches the two known Ekonovus containers at the monitored address and compares their
+schedules with what dist/ already ships. Švara is checked separately by probe_svara.mjs.
 
 Exit codes are distinct on purpose:
-    0   unchanged — skip the refresh
-    10  changed — run the full fetch
-    1   the check itself failed — treat as "cannot tell", and refresh anyway,
-        because skipping on an inconclusive check is how a stale schedule
-        survives indefinitely
+    0   unchanged
+    10  changed — review the monitored address manually
+    1   the check itself failed — treat as "cannot tell" and investigate
 
-The witnesses are the app's own containers. They are not a statistical sample —
-one address cannot prove a municipality unchanged — but they are the cheapest
-signal that catches the case that matters: the operators republishing their
-year. A full refresh still runs monthly regardless, so the worst case for a
-false "unchanged" is one skipped cycle.
+The witnesses are the app's own Žalgirio g. 8A containers. They intentionally monitor
+one address only; a change raises a warning for manual review and never starts a bulk
+catalogue or schedule fetch.
 """
 
 import io
@@ -95,7 +90,7 @@ def main():
 
     shipped = shipped_dates()
     if not shipped:
-        print("no shipped dates to compare against — refresh needed")
+        print("no shipped dates to compare against — manual review needed")
         return CHANGED
 
     try:
@@ -108,14 +103,14 @@ def main():
     common = set(shipped) & set(live)
     if not common:
         print(f"witness containers not found live (shipped: {sorted(shipped)}, "
-              f"live: {sorted(live)}) — refresh needed")
+              f"live: {sorted(live)}) — manual review needed")
         return CHANGED
 
     changes = compare(shipped, live, today)
     if changes:
         for inv, a, b in changes:
             print(f"  {inv}: shipped {a} -> live {b}")
-        print(f"{len(changes)} witness container(s) changed — refresh needed")
+        print(f"{len(changes)} witness container(s) changed — manual review needed")
         return CHANGED
 
     print(f"{len(common)} witness container(s) unchanged since "
