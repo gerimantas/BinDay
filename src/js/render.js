@@ -123,7 +123,6 @@ function render(now) {
   // instruction rather than a footnote. The footer keeps only provenance.
   html += `<footer>
     ${monitor}
-    Duomenys surinkti ${getCollected()}
     ${expiring.length ? `<br><span class="warn">Baigiasi grafikas: ${expiring.join(', ')}</span>` : ''}
   </footer>`;
 
