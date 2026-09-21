@@ -639,8 +639,8 @@ const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r
    Kept as a `let` set through setCollected() for the same reason CONTAINERS
    became getSchedule(): a value that changes with the active address must not
    be a binding other modules captured at load time. */
-const DEFAULT_COLLECTED = '2026-09-14';
-const DEFAULT_CHECKED = '2026-09-14';
+const DEFAULT_COLLECTED = '2026-09-21';
+const DEFAULT_CHECKED = '2026-09-21';
 let collected = DEFAULT_COLLECTED;
 
 function getCollected() {
@@ -676,10 +676,10 @@ const DEFAULT_SCHEDULE = [
   {
     type: 'PACKAGING', label: 'Pakuotės', id: '52-P-22781',
     emoji: '🟡', color: 'gold',
-    operator: 'Ekonovus', until: '2027-05-04',
+    operator: 'Ekonovus', until: '2027-05-25',
     dates: ['2026-08-04','2026-08-25','2026-09-15','2026-10-06','2026-10-27',
             '2026-11-17','2026-12-08','2026-12-29','2027-01-19','2027-02-09',
-            '2027-03-02','2027-03-23','2027-04-13','2027-05-04']
+            '2027-03-02','2027-03-23','2027-04-13','2027-05-04','2027-05-25']
   },
   {
     type: 'GLASS', label: 'Stiklas', id: '52-S-24716',
