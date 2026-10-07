@@ -12,3 +12,4 @@ data/raw/
 # itself; this is belt and braces so one can never be committed.
 .tmp-*
 .code-review-graph/
+.vscode/
