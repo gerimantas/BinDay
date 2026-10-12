@@ -2,7 +2,7 @@
 
 ## Status
 
-**active** — 2026-10-12 (S6)
+**active** — 2026-10-12 (S7)
 
 Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ (`binday-v27`).
 Only Žalgirio g. 8A is monitored; bulk refresh automation was removed 2026-09-14 by user
@@ -11,8 +11,8 @@ decision.
 **Švara now blocks automated requests (Cloudflare Turnstile, since ~2026-10-05).** Every
 API/PDF/ICS call without a session cookie gets HTTP 403, from a runner or a home IP. The
 monthly workflow (`health.yml`, 1st at 05:23 UTC) therefore updates Ekonovus live and takes
-Švara dates from `data/zalgirio_svara.json`, refreshed by hand in a watched browser with
-`tools/svara_session_dates.js`. The run fails on purpose as an email reminder when that file
+Švara dates from `data/zalgirio_svara.json`, refreshed by hand in the user's Chrome
+(Claude in Chrome, since S7) with `tools/svara_session_dates.js`. The run fails on purpose as an email reminder when that file
 is >92 days old or its dates end within 90 days — first expected ~2027-01-12. Details:
 `CLAUDE.md` and `.claude/skills/binday/references/svara-address-api.md`. **The bulk Švara
 tools (`fetch_svara.js`, `fetch_dates_svara.mjs`) are broken by the same gate** — dormant,
@@ -29,8 +29,8 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
 
 - **When GitHub emails "Run failed: Žalgirio 8A schedule update", refresh Švara by hand.**
   In Claude in Chrome open `https://grafikai.svara.lt/`, run `tools/svara_session_dates.js`
-  with `javascript_tool` on that tab, save the result to `data/zalgirio_svara.json`, then `python tools/update_zalgirio_schedule.py`,
-  `python tools/build_app.py`. On 403/404 with a live session the function ids changed —
+  with `javascript_tool` on that tab, save the result to `data/zalgirio_svara.json`, then
+  `python tools/update_zalgirio_schedule.py`, `python tools/build_app.py`. On 403/404 with a live session the function ids changed —
   method in `.claude/skills/binday/references/svara-address-api.md`.
 - **ICS `LOCATION` is always Žalgirio g. 8A** (`src/js/ics.js`, uses `ADDRESS`), even when
   another saved address is active. Use the active address.
@@ -63,6 +63,8 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
 
 ## Done Log
 
+- **S7:** Švara refresh moved from Playwright MCP to Claude in Chrome (BrowserOS neo blocked
+  by Smart App Control); verified live, dates unchanged.
 - **S6:** Diagnosed the two failed Žalgirio runs (2026-10-05, 10-12): Švara Turnstile 403,
   plus a redeploy that replaced the generic `apiPath` server function. Švara now read from a
   file; Ekonovus no longer blocked by a Švara failure; checks monthly instead of weekly.
@@ -150,6 +152,22 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
 
 ## Archive
 
+### Session 2026-10-12 — S7: Švara refresh moved to Claude in Chrome
+
+- **Done:** BrowserOS neo found blocked by Windows Smart App Control (now enforcing; unsigned
+  `chrome.dll`, upstream issue #2080 closed unfixed). Agent browser switched to Claude in
+  Chrome (`/chrome` enabled by default); BrowserOS MCP server and skill removed.
+  `tools/svara_session_dates.js` rewritten as page code for `javascript_tool`; live run in
+  the user's Chrome passed Turnstile with no checkbox and returned the same 33 dates as
+  `data/zalgirio_svara.json`.
+- **Decided / overturned:** Claude in Chrome replaces BrowserOS and, for BinDay, Playwright
+  MCP (user, option 1). Playwright stays installed as fallback.
+- **Code:** `tools/svara_session_dates.js`; docs in `CLAUDE.md`, `CONTEXT.md`,
+  `.claude/skills/binday/SKILL.md`, `references/svara-address-api.md`.
+- **Entry point:** Claude in Chrome → open `https://grafikai.svara.lt/` → `javascript_tool`
+  with the file's text. Why/how: vault `wiki/agents/claude-in-chrome.md`.
+- **Not measured:** `binday` evals not re-run (one-sentence doc change).
+
 ### Session 2026-10-12 — Švara behind Turnstile; monthly check; update offer
 
 - **Done:** found both failed runs were Švara HTTP 403 (Cloudflare Turnstile + redeployed
@@ -164,11 +182,10 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
   `src/js/main.js`, `src/styles.css`, `sw.js`, `tools/build_app.py`, docs in `CLAUDE.md`,
   `README.md`, `binday` skill.
 - **Entry point:** `python tools/update_zalgirio_schedule.py [--check-svara]`; Švara:
-  Claude in Chrome `javascript_tool` with `tools/svara_session_dates.js` on a grafikai.svara.lt tab
-  (moved off Playwright MCP 2026-10-12; same dates as the saved file).
+  Playwright MCP `browser_run_code_unsafe filename=tools/svara_session_dates.js`.
 - **Not measured:** "Grafikas atnaujintas" toast (needs a real data change); whether Google
   re-import truly updates rather than duplicates. BrowserOS neo blocked by Windows Smart App
-  Control (unsigned `chrome.dll`) — replaced by Claude in Chrome 2026-10-12.
+  Control (unsigned `chrome_elf.dll`) — PC task, not fixed.
 
 ### Session 2026-08-03 — S5
 
