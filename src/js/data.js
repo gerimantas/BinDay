@@ -22,7 +22,10 @@ const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r
    became getSchedule(): a value that changes with the active address must not
    be a binding other modules captured at load time. */
 const DEFAULT_COLLECTED = '2026-10-12';
-const DEFAULT_CHECKED = '2026-10-12';
+// Per operator: Ekonovus is checked by the monthly run, Švara by hand in a browser
+// (its site blocks automated requests), so the two dates drift apart.
+const DEFAULT_CHECKED_EKONOVUS = '2026-10-12';
+const DEFAULT_CHECKED_SVARA = '2026-10-12';
 let collected = DEFAULT_COLLECTED;
 
 function getCollected() {
@@ -34,7 +37,7 @@ function setCollected(date) {
 }
 
 function getLastChecked() {
-  return DEFAULT_CHECKED;
+  return { ekonovus: DEFAULT_CHECKED_EKONOVUS, svara: DEFAULT_CHECKED_SVARA };
 }
 
 /* The schedule shipped with the app — the default shown when no saved address is

@@ -7,8 +7,10 @@ function render(now) {
   const calendar = buildCalendar();
   const upcoming = calendar.filter(e => e.iso >= today);
   const app = document.getElementById('app');
+  const checked = getLastChecked();
   const monitor = isMonitoredSchedule()
-    ? `<div class="monitor"><span aria-hidden="true"></span>Stebėjimas aktyvus · tikrinta ${getLastChecked()}</div>`
+    ? `<div class="monitor"><span aria-hidden="true"></span>Ekonovus · tikrinta ${checked.ekonovus}</div>
+       <div class="monitor"><span aria-hidden="true"></span>Kauno švara · tikrinta ${checked.svara}</div>`
     : '';
 
   if (!upcoming.length) {

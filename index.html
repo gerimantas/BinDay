@@ -640,7 +640,10 @@ const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r
    became getSchedule(): a value that changes with the active address must not
    be a binding other modules captured at load time. */
 const DEFAULT_COLLECTED = '2026-10-12';
-const DEFAULT_CHECKED = '2026-10-12';
+// Per operator: Ekonovus is checked by the monthly run, Švara by hand in a browser
+// (its site blocks automated requests), so the two dates drift apart.
+const DEFAULT_CHECKED_EKONOVUS = '2026-10-12';
+const DEFAULT_CHECKED_SVARA = '2026-10-12';
 let collected = DEFAULT_COLLECTED;
 
 function getCollected() {
@@ -652,7 +655,7 @@ function setCollected(date) {
 }
 
 function getLastChecked() {
-  return DEFAULT_CHECKED;
+  return { ekonovus: DEFAULT_CHECKED_EKONOVUS, svara: DEFAULT_CHECKED_SVARA };
 }
 
 /* The schedule shipped with the app — the default shown when no saved address is
@@ -781,8 +784,10 @@ function render(now) {
   const calendar = buildCalendar();
   const upcoming = calendar.filter(e => e.iso >= today);
   const app = document.getElementById('app');
+  const checked = getLastChecked();
   const monitor = isMonitoredSchedule()
-    ? `<div class="monitor"><span aria-hidden="true"></span>Stebėjimas aktyvus · tikrinta ${getLastChecked()}</div>`
+    ? `<div class="monitor"><span aria-hidden="true"></span>Ekonovus · tikrinta ${checked.ekonovus}</div>
+       <div class="monitor"><span aria-hidden="true"></span>Kauno švara · tikrinta ${checked.svara}</div>`
     : '';
 
   if (!upcoming.length) {
