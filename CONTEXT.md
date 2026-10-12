@@ -28,8 +28,8 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
 ## Next Tasks
 
 - **When GitHub emails "Run failed: Žalgirio 8A schedule update", refresh Švara by hand.**
-  Run `tools/svara_session_dates.js` via Playwright MCP `browser_run_code_unsafe filename=`,
-  save to `data/zalgirio_svara.json`, then `python tools/update_zalgirio_schedule.py`,
+  In Claude in Chrome open `https://grafikai.svara.lt/`, run `tools/svara_session_dates.js`
+  with `javascript_tool` on that tab, save the result to `data/zalgirio_svara.json`, then `python tools/update_zalgirio_schedule.py`,
   `python tools/build_app.py`. On 403/404 with a live session the function ids changed —
   method in `.claude/skills/binday/references/svara-address-api.md`.
 - **ICS `LOCATION` is always Žalgirio g. 8A** (`src/js/ics.js`, uses `ADDRESS`), even when
@@ -164,10 +164,11 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
   `src/js/main.js`, `src/styles.css`, `sw.js`, `tools/build_app.py`, docs in `CLAUDE.md`,
   `README.md`, `binday` skill.
 - **Entry point:** `python tools/update_zalgirio_schedule.py [--check-svara]`; Švara:
-  Playwright MCP `browser_run_code_unsafe filename=tools/svara_session_dates.js`.
+  Claude in Chrome `javascript_tool` with `tools/svara_session_dates.js` on a grafikai.svara.lt tab
+  (moved off Playwright MCP 2026-10-12; same dates as the saved file).
 - **Not measured:** "Grafikas atnaujintas" toast (needs a real data change); whether Google
   re-import truly updates rather than duplicates. BrowserOS neo blocked by Windows Smart App
-  Control (unsigned `chrome_elf.dll`) — PC task, not fixed.
+  Control (unsigned `chrome.dll`) — replaced by Claude in Chrome 2026-10-12.
 
 ### Session 2026-08-03 — S5
 
