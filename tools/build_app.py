@@ -41,6 +41,7 @@ ORDER = [
     "search.js",     # normalise, tokens, addressKey, searchAddresses, typeDots
     "settings.js",   # the sheet: renderSaved, fillAreas, doSearch, locate, applyActive
     "version.js",    # checkForNewData, refreshArea — needs applyActive/scheduleFor
+    "update.js",     # showUpdate, registerServiceWorker — the "new version" offer
     "main.js",       # listeners and startup only
 ]
 

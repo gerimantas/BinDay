@@ -1,7 +1,7 @@
 // Bump CACHE on every deploy that changes index.html, or clients keep serving
 // the stale schedule from cache indefinitely. tools/build_app.py does this
 // automatically — do not rely on remembering.
-const CACHE = 'binday-v26';
+const CACHE = 'binday-v27';
 
 // The app shell. Pre-cached on install so the app opens with no signal.
 const ASSETS = [
@@ -26,9 +26,27 @@ const DATA = /\/dist\/.*\.json$/;
 // on exactly the deploy it exists to deliver.
 const NEVER_CACHE = /\/dist\/version\.json$/;
 
+// A new worker waits instead of taking over, and the page offers the update;
+// the page posts SKIP_WAITING when the user accepts. Taking over unasked swapped
+// the code under an open page and gave no sign a new schedule had arrived.
+//
+// Transitional: pages from binday-v26 and earlier have no offer to show, so a
+// worker replacing one of those still takes over at once, as before. Drop this
+// once no such cache can remain on a phone.
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-  self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(ASSETS))
+      .then(() => caches.keys())
+      .then(keys => {
+        const old = keys.map(k => Number((k.match(/^binday-v(\d+)$/) || [])[1]))
+          .filter(n => n && n <= 26);
+        if (old.length) self.skipWaiting();
+      })
+  );
+});
+
+self.addEventListener('message', e => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {

@@ -75,12 +75,11 @@ setInterval(refresh, 60000);
 setTimeout(() => {
   checkForNewData()
     .then(changed => changed.length && applyNewData(changed))
+    .then(applied => { if (applied) showUpdate('Grafikas atnaujintas.'); })
     .catch(() => {});
 }, 2000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();
 });
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+registerServiceWorker();

@@ -542,6 +542,24 @@
     border-radius: 8px; padding: 12px 13px; font-size: 13px; line-height: 1.5;
     color: var(--text-secondary); margin-top: 14px;
   }
+  /* Update offer: pinned above the bottom edge until answered. */
+  .update {
+    position: fixed; left: 16px; right: 16px; z-index: 40;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    max-width: 488px; margin: 0 auto;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-active); border: 1px solid var(--accent-soon);
+    border-radius: 12px; padding: 12px 14px;
+    font-size: 14px; color: var(--text-primary);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+  .update[hidden] { display: none; }
+  .update span { flex: 1; }
+  .update button {
+    width: auto; flex: none; margin: 0; padding: 9px 14px;
+    background: var(--text-primary); color: var(--bg-base); border: none;
+    font-size: 14px; font-weight: 700;
+  }
   .busy { font-size: 13px; color: var(--text-dim); margin-top: 12px; }
 </style>
 </head>
@@ -619,6 +637,7 @@
   <footer style="margin-top:26px">Duomenys: UAB Kauno švara · Ekonovus</footer>
  </div>
 </div>
+<div id="update" class="update" role="status" aria-live="polite" hidden></div>
 <script>
 /* ===== data.js ===== */
 /* ------------------------------------------------------------------
@@ -1782,6 +1801,75 @@ async function applyNewData(slugs) {
   } catch (e) { return false; }
 }
 
+/* ===== update.js ===== */
+/* ------------------------------------------------------------------
+   Telling the user an update is ready.
+
+   The worker is cache-first, so a new build used to land silently: the phone
+   kept showing the old page until the app happened to be closed and reopened,
+   and nothing said a newer schedule was waiting. Now the new worker installs,
+   waits, and the page offers it; accepting reloads onto the new build. Same
+   pattern as BakeStack. The offer stays on screen until answered — a toast that
+   fades in three seconds is easy to miss on the one open that matters.
+
+   An installed PWA can sit in the background for days without a fresh load, so
+   the worker is also asked to look for an update whenever the app comes back
+   to the foreground.
+------------------------------------------------------------------ */
+let updateTimer = null;
+
+function showUpdate(message, action) {
+  const el = document.getElementById('update');
+  el.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = message;
+  el.appendChild(span);
+  if (action) {
+    const btn = document.createElement('button');
+    btn.textContent = action.label;
+    btn.addEventListener('click', action.run);
+    el.appendChild(btn);
+  }
+  el.hidden = false;
+  clearTimeout(updateTimer);
+  // Information fades; an offer that needs an answer does not.
+  if (!action) updateTimer = setTimeout(() => { el.hidden = true; }, 4000);
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    const offer = worker => showUpdate('Yra nauja programėlės versija.', {
+      label: 'Atnaujinti',
+      run: () => worker.postMessage('SKIP_WAITING'),
+    });
+    // Downloaded on an earlier visit and still waiting.
+    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        // No controller means a first install: a cache fill, not an update.
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) offer(nw);
+      });
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) reg.update().catch(() => {});
+    });
+  }).catch(() => { /* offline support is optional; the app works without it */ });
+
+  // The new worker took over: reload once so the page runs the build it cached.
+  // Not on a first visit, where clients.claim() also fires this.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading || !hadController) return;
+    reloading = true;
+    location.reload();
+  });
+}
+
 /* ===== main.js ===== */
 $('tabAddr').addEventListener('click', () => showPage('addr'));
 $('tabSet').addEventListener('click', () => showPage('set'));
@@ -1860,15 +1948,14 @@ setInterval(refresh, 60000);
 setTimeout(() => {
   checkForNewData()
     .then(changed => changed.length && applyNewData(changed))
+    .then(applied => { if (applied) showUpdate('Grafikas atnaujintas.'); })
     .catch(() => {});
 }, 2000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();
 });
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+registerServiceWorker();
 </script>
 </body>
 </html>
