@@ -106,11 +106,36 @@ function render(now) {
     }
   }
 
+  // The button says what the calendar holds, not just what it does: "Įkelti"
+  // alone left it unclear whether that had already happened, and whether an
+  // earlier import still matched the schedule.
+  const cal = exportState(upcoming, today);
+  const pickups = ltCount(upcoming.length, 'išvežimas', 'išvežimai', 'išvežimų');
+  let calTitle, calSub, calClass = '';
+  if (cal.kind === 'none') {
+    calTitle = 'Įkelti į kalendorių';
+    // Imports made before this record existed leave no trace, so do not claim
+    // "not imported" — re-importing is harmless, the UIDs are per date.
+    calSub = `${pickups}, priminimai 17:00 ir 20:00 iš vakaro · įkėlimo įrašo nėra; `
+      + 'jei jau įkėlei anksčiau, įkelk dar kartą — dublikatų nebus';
+  } else if (cal.kind === 'current') {
+    calClass = 'synced';
+    calTitle = '<span class="tick" aria-hidden="true">✓</span> Kalendorius atnaujintas';
+    calSub = `Įkelta ${cal.at} · grafikas nuo to laiko nepasikeitė`;
+  } else {
+    calClass = 'stale';
+    calTitle = 'Atnaujinti kalendorių';
+    const what = [];
+    if (cal.changed) what.push(ltCount(cal.changed, 'nauja ar pakeista data', 'naujos ar pakeistos datos', 'naujų ar pakeistų datų'));
+    if (cal.cancelled.length) what.push(`atšaukta: ${cal.cancelled.join(', ')} — ištrink kalendoriuje ranka`);
+    calSub = `Grafikas pasikeitė po įkėlimo ${cal.at}: ${what.join('; ')}`;
+  }
+
   html += `
     <div class="actions">
-      <button id="ics">
-        Įkelti į kalendorių
-        <span class="sub">${upcoming.length} įvykiai · priminimai 17:00 ir 20:00 iš vakaro</span>
+      <button id="ics" class="${calClass}">
+        ${calTitle}
+        <span class="sub">${calSub}</span>
       </button>
     </div>`;
 
@@ -129,7 +154,7 @@ function render(now) {
   </footer>`;
 
   app.innerHTML = html;
-  document.getElementById('ics').addEventListener('click', () => downloadICS(upcoming));
+  document.getElementById('ics').addEventListener('click', () => { downloadICS(upcoming); refresh(); });
 
   const more = document.getElementById('more');
   if (more) more.addEventListener('click', () => { expanded = true; refresh(); });

@@ -330,6 +330,11 @@
     margin-bottom: 9px;
   }
   button:active { background: var(--bg-active); }
+  /* Calendar export state: current reads as done, stale asks to be pressed. */
+  #ics.synced { color: var(--text-secondary); font-weight: 500; }
+  #ics.synced .tick { color: var(--glass); }
+  #ics.stale { border-color: var(--accent-soon); }
+  #ics.stale .sub { color: var(--text-secondary); }
   button .sub {
     display: block;
     font-size: 12px;
@@ -883,11 +888,36 @@ function render(now) {
     }
   }
 
+  // The button says what the calendar holds, not just what it does: "Įkelti"
+  // alone left it unclear whether that had already happened, and whether an
+  // earlier import still matched the schedule.
+  const cal = exportState(upcoming, today);
+  const pickups = ltCount(upcoming.length, 'išvežimas', 'išvežimai', 'išvežimų');
+  let calTitle, calSub, calClass = '';
+  if (cal.kind === 'none') {
+    calTitle = 'Įkelti į kalendorių';
+    // Imports made before this record existed leave no trace, so do not claim
+    // "not imported" — re-importing is harmless, the UIDs are per date.
+    calSub = `${pickups}, priminimai 17:00 ir 20:00 iš vakaro · įkėlimo įrašo nėra; `
+      + 'jei jau įkėlei anksčiau, įkelk dar kartą — dublikatų nebus';
+  } else if (cal.kind === 'current') {
+    calClass = 'synced';
+    calTitle = '<span class="tick" aria-hidden="true">✓</span> Kalendorius atnaujintas';
+    calSub = `Įkelta ${cal.at} · grafikas nuo to laiko nepasikeitė`;
+  } else {
+    calClass = 'stale';
+    calTitle = 'Atnaujinti kalendorių';
+    const what = [];
+    if (cal.changed) what.push(ltCount(cal.changed, 'nauja ar pakeista data', 'naujos ar pakeistos datos', 'naujų ar pakeistų datų'));
+    if (cal.cancelled.length) what.push(`atšaukta: ${cal.cancelled.join(', ')} — ištrink kalendoriuje ranka`);
+    calSub = `Grafikas pasikeitė po įkėlimo ${cal.at}: ${what.join('; ')}`;
+  }
+
   html += `
     <div class="actions">
-      <button id="ics">
-        Įkelti į kalendorių
-        <span class="sub">${upcoming.length} įvykiai · priminimai 17:00 ir 20:00 iš vakaro</span>
+      <button id="ics" class="${calClass}">
+        ${calTitle}
+        <span class="sub">${calSub}</span>
       </button>
     </div>`;
 
@@ -906,7 +936,7 @@ function render(now) {
   </footer>`;
 
   app.innerHTML = html;
-  document.getElementById('ics').addEventListener('click', () => downloadICS(upcoming));
+  document.getElementById('ics').addEventListener('click', () => { downloadICS(upcoming); refresh(); });
 
   const more = document.getElementById('more');
   if (more) more.addEventListener('click', () => { expanded = true; refresh(); });
@@ -1041,6 +1071,62 @@ function downloadICS(entries) {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  markExported(entries);
+}
+
+/* What was last put into the calendar from this phone, so the button can say
+   whether the calendar is current. The app cannot see the calendar itself — it
+   only knows what it handed over, so "įkelta" means "the file was opened here".
+
+   Keyed by the address's container ids rather than the saved-address index: the
+   index shifts when an address is removed, the containers do not. Each pickup is
+   stored as "date|ids", so a bin added to an existing day counts as a change. */
+const CAL_STORE = 'binday.calendar';
+
+function calendarKey() {
+  return getSchedule().map(c => c.id).sort().join(',');
+}
+
+function pickupSig(e) {
+  return e.iso + '|' + e.types.map(c => c.id).sort().join(',');
+}
+
+function loadExports() {
+  try { return JSON.parse(localStorage.getItem(CAL_STORE) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+
+function markExported(entries) {
+  const all = loadExports();
+  all[calendarKey()] = { at: isoLocal(new Date()), pickups: entries.map(pickupSig) };
+  try { localStorage.setItem(CAL_STORE, JSON.stringify(all)); }
+  catch (e) { /* private mode: the button just keeps saying "not yet" */ }
+}
+
+/* none: never exported for this address. current: the calendar holds every
+   upcoming pickup. stale: pickups were added, changed or cancelled since the
+   export — re-importing fixes the first two (UIDs are per date), but a cancelled one stays
+   in the calendar until deleted by hand, so those dates are listed. */
+function exportState(upcoming, today) {
+  const last = loadExports()[calendarKey()];
+  if (!last || !Array.isArray(last.pickups)) return { kind: 'none' };
+  const had = new Set(last.pickups);
+  const days = new Set(upcoming.map(e => e.iso));
+  // New or changed days: one event per day, so re-importing fixes both.
+  const changed = upcoming.filter(e => !had.has(pickupSig(e))).length;
+  // A day gone entirely has no event to overwrite it.
+  const cancelled = last.pickups
+    .map(s => s.slice(0, 10))
+    .filter(iso => iso >= today && !days.has(iso));
+  if (!changed && !cancelled.length) return { kind: 'current', at: last.at };
+  return { kind: 'stale', at: last.at, changed, cancelled };
+}
+
+/* Lithuanian count agreement: 1 / 21 data, 2–9 datos, 10–20 / 30 datų. */
+function ltCount(n, one, few, many) {
+  const tens = n % 100, ones = n % 10;
+  const word = (tens >= 10 && tens <= 20) || ones === 0 ? many : ones === 1 ? one : few;
+  return `${n} ${word}`;
 }
 
 /* A single `now` per render keeps every relative label consistent — no chance

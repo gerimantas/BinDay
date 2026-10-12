@@ -312,6 +312,11 @@
     margin-bottom: 9px;
   }
   button:active { background: var(--bg-active); }
+  /* Calendar export state: current reads as done, stale asks to be pressed. */
+  #ics.synced { color: var(--text-secondary); font-weight: 500; }
+  #ics.synced .tick { color: var(--glass); }
+  #ics.stale { border-color: var(--accent-soon); }
+  #ics.stale .sub { color: var(--text-secondary); }
   button .sub {
     display: block;
     font-size: 12px;
