@@ -26,7 +26,7 @@ The app serves **40 959 Kauno r. addresses**, each with its own containers and d
 static JSON on GitHub Pages. No backend. It fetches `dist/`, never an operator.
 
 **Refreshing is automated.** `.github/workflows/refresh.yml` runs monthly behind
-`tools/precheck.py`; `health.yml` checks weekly that both operators still answer and that
+`tools/precheck.py`; `health.yml` checks monthly that both operators still answer and that
 the committed `dist/` still passes its gate. So the usual job here is **diagnosing a run
 that failed**, not scraping by hand. Manual scraping is the fallback and is documented in
 `references/`.

@@ -11,9 +11,10 @@ name: Žalgirio 8A schedule update
 
 on:
   schedule:
-    # Weekly, Monday 05:23 UTC. Off the hour: the top of the hour is when every
-    # scheduled workflow on GitHub fires at once.
-    - cron: '23 5 * * 1'
+    # Monthly, the 1st at 05:23 UTC. Schedules change about once a year, and the
+    # stored horizon runs months ahead, so a weekly check bought nothing. Off the
+    # hour: the top of the hour is when every scheduled workflow on GitHub fires.
+    - cron: '23 5 1 * *'
   workflow_dispatch:
 
 concurrency:

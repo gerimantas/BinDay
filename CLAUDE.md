@@ -111,7 +111,7 @@ python tools/check_dist.py --previous <d> # publish gate; must pass before commi
 ```
 
 **Bulk refresh is deliberately not automated.** `health.yml` checks only Žalgirio g. 8A
-weekly (one Švara container and two Ekonovus containers) and validates the committed
+monthly (one Švara container and two Ekonovus containers) and validates the committed
 `dist/`. If that address gains newer dates it raises a warning for manual review; it does
 not enumerate municipalities, catalogues, or every container schedule. Run the bulk tools
 above only when the user explicitly requests a wider rebuild.

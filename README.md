@@ -55,7 +55,7 @@ re-importing updates events instead of duplicating them.
 
 ## Updating the schedule
 
-The weekly GitHub workflow automatically fetches, verifies, and publishes every date for
+The monthly GitHub workflow automatically fetches, verifies, and publishes every date for
 the three resolved Žalgirio g. 8A containers. It never scans other addresses or
 municipalities. `tools/update_zalgirio_schedule.py` is the same focused updater for a
 manual run.
