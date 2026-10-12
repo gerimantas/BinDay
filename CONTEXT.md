@@ -2,41 +2,40 @@
 
 ## Status
 
-**active** — 2026-08-03 (S5)
+**active** — 2026-10-12 (S6)
 
-Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/. **The published
-`dist/` is sound and untouched by this session's failures** — 40 959 addresses, every waste
-type present, gate passing. No failed run published anything, which is what the gate is for.
+Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ (`binday-v27`).
+Only Žalgirio g. 8A is monitored; bulk refresh automation was removed 2026-09-14 by user
+decision.
 
-**Bulk refresh automation was removed on 2026-09-14 by user decision.** GitHub now monitors
-only Žalgirio g. 8A in Juragiai: one Švara and two Ekonovus containers. A changed horizon
-raises a warning for manual review and never launches municipality-wide catalogue or date
-fetches.
+**Švara now blocks automated requests (Cloudflare Turnstile, since ~2026-10-05).** Every
+API/PDF/ICS call without a session cookie gets HTTP 403, from a runner or a home IP. The
+monthly workflow (`health.yml`, 1st at 05:23 UTC) therefore updates Ekonovus live and takes
+Švara dates from `data/zalgirio_svara.json`, refreshed by hand in a watched browser with
+`tools/svara_session_dates.js`. The run fails on purpose as an email reminder when that file
+is >92 days old or its dates end within 90 days — first expected ~2027-01-12. Details:
+`CLAUDE.md` and `.claude/skills/binday/references/svara-address-api.md`. **The bulk Švara
+tools (`fetch_svara.js`, `fetch_dates_svara.mjs`) are broken by the same gate** — dormant,
+not fixed.
 
-**Ekonovus dates now take four requests (~1.5 min) instead of 266 (~65 min)**, verified on
-the runner. A query costs ~10 s regardless of size — 4 rows took 12.1 s, 443 rows 13.7 s —
-so many small questions are far worse than a few large ones. The recorded "500-row hard
-cap" was never a server limit; it came from the report's own UI, and 20 000 is accepted.
+**App, S6:** footer shows the last check per operator (Ekonovus / Kauno švara); the calendar
+button says whether the calendar is current (records each export per address); a new build
+is offered with "Yra nauja programėlės versija · Atnaujinti" instead of swapping in silently.
 
-**The bulk Švara pipeline is dormant by design.** Its catalogue paging investigation remains
-recorded in `.planning/SVARA_PAGING.md`, but it is no longer an active task because scheduled
-and manually dispatchable bulk refresh automation has been removed.
-
-**Process failure worth more than the fixes.** Four ~40-minute full pipeline runs produced
-four guessed fixes; every question could have been answered by one request. The user
-stopped it. This is the same failure as S2's six blind rebuilds, already recorded in
-[[wiki/bin-day/catalogue-pipeline-lessons]] — *guessing was never cheaper than measuring* —
-and I had not read it. One concrete cost: joining `description` with `descriptionPlural`
-fixed 56 containers and broke 194, invisible in the unchanged total and visible only in
-per-type counts. The rule is now in the skill.
-
-**Prior status (S4):** executed all ten steps of `.planning/PIPELINE_PLAN.md`; multi-address
-works in production. Corrected the merge key to `(locality, street, house, flat)` by
-measuring against fetched dates rather than match rates, superseding two recorded rules.
-Found four silent defects by running things rather than reading them.
+**Prior status (S5, 2026-08-03):** published `dist/` sound (40 959 addresses, gate passing);
+Ekonovus dates take four requests (~1.5 min) instead of 266.
 
 ## Next Tasks
 
+- **When GitHub emails "Run failed: Žalgirio 8A schedule update", refresh Švara by hand.**
+  Run `tools/svara_session_dates.js` via Playwright MCP `browser_run_code_unsafe filename=`,
+  save to `data/zalgirio_svara.json`, then `python tools/update_zalgirio_schedule.py`,
+  `python tools/build_app.py`. On 403/404 with a live session the function ids changed —
+  method in `.claude/skills/binday/references/svara-address-api.md`.
+- **ICS `LOCATION` is always Žalgirio g. 8A** (`src/js/ics.js`, uses `ADDRESS`), even when
+  another saved address is active. Use the active address.
+- **`binday` SKILL.md still describes `refresh.yml` monthly automation**, removed 2026-09-14.
+  Rewrite the "Refreshing" section for the Žalgirio-only + manual-Švara world.
 - **Migrate saved addresses from the pre-S4 shape.** Entries saved before this session hold
   Švara's full address string and no `key`, so they match on address and keep working, but
   they will never pick up new data. Re-resolve them through the index on load and mark any
@@ -64,6 +63,10 @@ Found four silent defects by running things rather than reading them.
 
 ## Done Log
 
+- **S6:** Diagnosed the two failed Žalgirio runs (2026-10-05, 10-12): Švara Turnstile 403,
+  plus a redeploy that replaced the generic `apiPath` server function. Švara now read from a
+  file; Ekonovus no longer blocked by a Švara failure; checks monthly instead of weekly.
+- **S6:** App: per-operator check dates, calendar export state, "new version" offer.
 - **S5:** Ekonovus dates 65 min → 1.5 min: filter on the inventory prefix and page 20 000
   rows at a time, four requests for Kauno r. Verified on the runner and against the shipped
   build — 132 250 pairs, none lost, every date difference explained by the sliding horizon.
@@ -106,7 +109,8 @@ Found four silent defects by running things rather than reading them.
 
 ## Key Facts
 
-- **Both operators have anonymous bulk APIs — no browser, no backend needed.**
+- **Ekonovus has an anonymous bulk API; Švara no longer does (Turnstile since 2026-10).**
+  The S3–S5 claim "no browser needed" now holds for Ekonovus only.
   [[wiki/bin-day/svara-address-api]] (seroval chain, `region` not `district`, 58 477
   containers in Kauno r.) and [[wiki/bin-day/ekonovus-powerbi-api]] (Power BI `querydata`,
   gzip, singular `(Pakuotė)` suffix). This overturns the S1 claim that Ekonovus requires a
@@ -137,16 +141,35 @@ Found four silent defects by running things rather than reading them.
 - Ekonovus Power BI serves a **valid-looking wrong answer** when a slicer fails to apply —
   a complete schedule for an unrelated container in another municipality, with no error.
   Always read the address back.
-- Fast path for Švara: `curl https://grafikai.svara.lt/api/download/EKzJW7DK` returns the
-  full year as a PDF, unauthenticated, ~2 s and zero credits. Cross-checked 24/24 against
-  a browser scrape. `hashedId=EKzJW7DK`, `wasteObjectId=279722`.
+- Švara ids for Žalgirio: `hashedId=EKzJW7DK` (drives the post-2026-10 schedule function),
+  `wasteObjectId=279722`. The unauthenticated PDF fast path (`/api/download/<hashedId>`)
+  returns 403 since 2026-10.
 - Ten SKILL.md files carry a UTF-8 BOM from a batch install (2026-04-01 and 2026-04-07).
   Harmless to the index generator, but any tool anchoring on `^---$` will miss their
   frontmatter.
 
 ## Archive
 
-### S5 — 2026-08-03
+### Session 2026-10-12 — Švara behind Turnstile; monthly check; update offer
+
+- **Done:** found both failed runs were Švara HTTP 403 (Cloudflare Turnstile + redeployed
+  server functions); Švara dates now from a hand-refreshed file, Ekonovus live; workflow
+  monthly with a stale-Švara reminder failure; app shows per-operator check dates, calendar
+  export state, and a "new version · Atnaujinti" offer. Pushed, live as `binday-v27`.
+- **Decided / overturned:** no automated bypass of Švara's human check (user chose manual
+  refresh, option A). Overturned: "Švara has an anonymous API / PDF fast path".
+- **Code:** `tools/svara_session_dates.js`, `data/zalgirio_svara.json`,
+  `tools/update_zalgirio_schedule.py`, `.github/workflows/health.yml` (probe_svara.mjs
+  deleted), `src/js/update.js`, `src/js/ics.js`, `src/js/render.js`, `src/js/data.js`,
+  `src/js/main.js`, `src/styles.css`, `sw.js`, `tools/build_app.py`, docs in `CLAUDE.md`,
+  `README.md`, `binday` skill.
+- **Entry point:** `python tools/update_zalgirio_schedule.py [--check-svara]`; Švara:
+  Playwright MCP `browser_run_code_unsafe filename=tools/svara_session_dates.js`.
+- **Not measured:** "Grafikas atnaujintas" toast (needs a real data change); whether Google
+  re-import truly updates rather than duplicates. BrowserOS neo blocked by Windows Smart App
+  Control (unsigned `chrome_elf.dll`) — PC task, not fixed.
+
+### Session 2026-08-03 — S5
 
 Started as a skill rewrite, became a pipeline investigation, and ended with the user
 stopping me for the right reason.
@@ -188,7 +211,7 @@ cycle.
 
 Nothing broken shipped: `dist/` is untouched and the gate held every time.
 
-### S4 — 2026-08-02/03
+### Session 2026-08-02 — S4 (2026-08-02/03)
 
 Executed all ten plan steps. The session began by auditing the plan rather than running
 it, and that audit is what made the rest worth doing.

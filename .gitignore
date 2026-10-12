@@ -14,3 +14,5 @@ data/raw/
 .code-review-graph/
 .vscode/
 .playwright-mcp/
+# Saved notification emails dropped in for diagnosis.
+*.eml
