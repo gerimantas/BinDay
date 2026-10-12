@@ -3,6 +3,32 @@
 Read this when a Švara fetch breaks or a new address must be resolved by hand.
 `tools/fetch_svara.js` and `tools/fetch_dates_svara.mjs` already implement all of it.
 
+## Since 2026-10: Turnstile session and per-endpoint functions
+
+**Švara is behind Cloudflare Turnstile since 2026-10.** Every request without a session
+cookie gets HTTP 403 `Užklausa neleidžiama.` — API, PDF and ICS alike, from a runner or a
+home IP. The cookie (`__Host-gs_session`, 30 min) is issued by `POST /api/session` only after
+"Verify you are human" passes, so a GitHub runner cannot read Švara and we do not automate
+past it. Its Žalgirio dates live in `data/zalgirio_svara.json`, refreshed in a watched
+browser with `tools/svara_session_dates.js` (Playwright MCP `browser_run_code_unsafe`,
+`filename=`); the monthly run fails with "Švara needs a manual check" when the file is over
+92 days old or its dates end within 90 days. The bulk Švara tools are broken by the same gate.
+
+The site was also redeployed with one server function per endpoint, replacing the generic
+`apiPath` proxy described below. Ids seen 2026-10-12 (they change on every redeploy — read
+them from `/assets/index-*.js`, `handler(os("<64 hex>"))`):
+
+| id prefix | input (`data: {...}`) |
+|---|---|
+| `4a0131c7` | subdistricts: `region, search` |
+| `4619cd8c` | localities: `region, subDistrict, search` |
+| `243a3bd9` | streets: `region, subDistrict, city, search` |
+| `924260c2` | contracts: `region, subDistrict, city, street, houseNumber, matchHouseNumber, pageIndex` |
+| `2aabda53` | schedule: `hashedId` (no longer `wasteObjectId`) |
+
+`matchHouseNumber: true` looks like exact house matching; still read `fullAddress` back.
+The sections below describe the pre-2026-10 API and are kept for the bulk tools.
+
 ## The server functions are seroval-encoded
 
 `grafikai.svara.lt` is a TanStack Start SPA. The backend sits behind

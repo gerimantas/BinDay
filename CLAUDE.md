@@ -111,10 +111,19 @@ python tools/check_dist.py --previous <d> # publish gate; must pass before commi
 ```
 
 **Bulk refresh is deliberately not automated.** `health.yml` checks only Žalgirio g. 8A
-monthly (one Švara container and two Ekonovus containers) and validates the committed
+monthly (two Ekonovus containers live, the Švara one from a file) and validates the committed
 `dist/`. If that address gains newer dates it raises a warning for manual review; it does
 not enumerate municipalities, catalogues, or every container schedule. Run the bulk tools
 above only when the user explicitly requests a wider rebuild.
+
+**Švara is behind Cloudflare Turnstile since 2026-10.** Every request without a session
+cookie gets HTTP 403 `Užklausa neleidžiama.` — API, PDF and ICS alike, from a runner or a
+home IP. The cookie (`__Host-gs_session`, 30 min) is issued by `POST /api/session` only after
+"Verify you are human" passes, so a GitHub runner cannot read Švara and we do not automate
+past it. Its Žalgirio dates live in `data/zalgirio_svara.json`, refreshed in a watched
+browser with `tools/svara_session_dates.js` (Playwright MCP `browser_run_code_unsafe`,
+`filename=`); the monthly run fails with "Švara needs a manual check" when the file is over
+92 days old or its dates end within 90 days. The bulk Švara tools are broken by the same gate.
 
 **`precheck.py` is monitoring-only.** The scheduled GitHub workflow instead runs
 `tools/update_zalgirio_schedule.py`, which fetches and publishes only the three resolved

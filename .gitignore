@@ -13,3 +13,4 @@ data/raw/
 .tmp-*
 .code-review-graph/
 .vscode/
+.playwright-mcp/

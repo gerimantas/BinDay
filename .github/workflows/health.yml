@@ -54,10 +54,9 @@ jobs:
       - name: Ekonovus — Power BI anonymous query
         run: python3 .github/workflows/probe_ekonovus.py
 
-      - name: Švara — seroval server function
-        run: |
-          npm install seroval --no-save --silent
-          node .github/workflows/probe_svara.mjs
+      # No Švara probe: since 2026-10 grafikai.svara.lt answers 403 to any request
+      # without a Cloudflare Turnstile session, which a runner cannot get. Its dates
+      # come from data/zalgirio_svara.json, refreshed by hand in a watched browser.
 
       - name: Update only Žalgirio g. 8A
         run: python3 tools/update_zalgirio_schedule.py
@@ -79,3 +78,8 @@ jobs:
           git add src/js/data.js index.html sw.js dist/kauno-r-sav/data.json dist/version.json
           git commit -m "Update Žalgirio 8A schedules"
           git push
+
+      - name: Is a manual Švara check due?
+        # Last on purpose: Ekonovus dates are already published when this fails.
+        # The failure is the reminder — it sends the "Run failed" email.
+        run: python3 tools/update_zalgirio_schedule.py --check-svara

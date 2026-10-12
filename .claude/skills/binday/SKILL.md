@@ -31,6 +31,15 @@ the committed `dist/` still passes its gate. So the usual job here is **diagnosi
 that failed**, not scraping by hand. Manual scraping is the fallback and is documented in
 `references/`.
 
+**Švara is behind Cloudflare Turnstile since 2026-10.** Every request without a session
+cookie gets HTTP 403 `Užklausa neleidžiama.` — API, PDF and ICS alike, from a runner or a
+home IP. The cookie (`__Host-gs_session`, 30 min) is issued by `POST /api/session` only after
+"Verify you are human" passes, so a GitHub runner cannot read Švara and we do not automate
+past it. Its Žalgirio dates live in `data/zalgirio_svara.json`, refreshed in a watched
+browser with `tools/svara_session_dates.js` (Playwright MCP `browser_run_code_unsafe`,
+`filename=`); the monthly run fails with "Švara needs a manual check" when the file is over
+92 days old or its dates end within 90 days. The bulk Švara tools are broken by the same gate.
+
 ## First: what is actually being asked?
 
 | The user wants | Go to |

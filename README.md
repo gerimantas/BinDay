@@ -55,10 +55,14 @@ re-importing updates events instead of duplicating them.
 
 ## Updating the schedule
 
-The monthly GitHub workflow automatically fetches, verifies, and publishes every date for
-the three resolved Žalgirio g. 8A containers. It never scans other addresses or
-municipalities. `tools/update_zalgirio_schedule.py` is the same focused updater for a
-manual run.
+The monthly GitHub workflow fetches, verifies, and publishes the dates for the two
+Ekonovus containers at Žalgirio g. 8A. It never scans other addresses or municipalities.
+
+Švara blocks automated requests (Cloudflare "Verify you are human"), so its dates come from
+`data/zalgirio_svara.json`, refreshed by hand in a browser with
+`tools/svara_session_dates.js`. When that file is over 92 days old, or its dates run out
+within 90 days, the monthly run fails on purpose and GitHub emails a reminder.
+`tools/update_zalgirio_schedule.py` is the same focused updater for a manual run.
 
 Dates are hardcoded in `index.html` under `CONTAINERS`, each with an `until` horizon.
 Past that date the app says the schedule needs refreshing rather than inventing dates.

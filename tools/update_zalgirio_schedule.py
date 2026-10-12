@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Refresh only the three schedules for Žalgirio g. 8A, Juragiai.
 
-This deliberately does not enumerate areas, addresses, or containers.  It asks the
-operators for the three already resolved inventory numbers, updates the built-in app
-schedule, and gives this address private schedule rows in dist/ so no neighbour is
-changed by accident.
+This deliberately does not enumerate areas, addresses, or containers.  It asks
+Ekonovus for the two resolved inventory numbers, takes the Švara dates from
+data/zalgirio_svara.json, updates the built-in app schedule, and gives this address
+private schedule rows in dist/ so no neighbour is changed by accident.
+
+Švara is read from a file because since 2026-10 its site answers 403 to anything
+without a Cloudflare Turnstile session, which a GitHub runner cannot obtain. A person
+refreshes the file in a watched browser with tools/svara_session_dates.js.
+`--check-svara` exits 3 when that refresh is due, so the monthly run can say so.
 """
 
 from __future__ import annotations
@@ -15,13 +20,15 @@ import io
 import json
 import os
 import re
-import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_JS = os.path.join(ROOT, "src", "js", "data.js")
 DIST_JSON = os.path.join(ROOT, "dist", "kauno-r-sav", "data.json")
 VERSION_JSON = os.path.join(ROOT, "dist", "version.json")
+SVARA_JSON = os.path.join(ROOT, "data", "zalgirio_svara.json")
+SVARA_MAX_AGE_DAYS = 92      # ask for a manual Švara check about once a quarter
+SVARA_MIN_HORIZON_DAYS = 90  # or sooner, if its published dates are running out
 ADDRESS_KEY = "jurag|zalgirio g|8a|"
 INVENTORIES = ("52-MK-036668", "52-P-22781", "52-S-24716")
 
@@ -32,21 +39,35 @@ def live_dates() -> dict[str, list[str]]:
     import precheck
 
     result = precheck.live_ekonovus()
-    proc = subprocess.run(
-        ["node", os.path.join(ROOT, ".github", "workflows", "probe_svara.mjs"), "--json"],
-        cwd=ROOT, text=True, encoding="utf-8", capture_output=True, check=True,
-    )
-    marker = next((line for line in proc.stdout.splitlines()
-                   if line.startswith("SCHEDULE_JSON=")), None)
-    if not marker:
-        raise RuntimeError("Švara probe returned no machine-readable schedule")
-    svara = json.loads(marker.removeprefix("SCHEDULE_JSON="))
+    svara = read_svara()
     result[svara["inventory"]] = svara["dates"]
 
     missing = set(INVENTORIES) - set(result)
     if missing:
         raise RuntimeError(f"operator response omitted: {sorted(missing)}")
     return {key: sorted(set(result[key])) for key in INVENTORIES}
+
+
+def read_svara() -> dict:
+    with io.open(SVARA_JSON, encoding="utf-8") as fh:
+        svara = json.load(fh)
+    if svara.get("inventory") != INVENTORIES[0] or not svara.get("dates"):
+        raise RuntimeError(f"{SVARA_JSON} does not hold dates for {INVENTORIES[0]}")
+    if "Juragių k." not in svara.get("fullAddress", ""):
+        raise RuntimeError(f"{SVARA_JSON} is for another address: {svara.get('fullAddress')}")
+    return svara
+
+
+def svara_check_due(today: dt.date) -> list[str]:
+    svara = read_svara()
+    reasons = []
+    age = (today - dt.date.fromisoformat(svara["checked"])).days
+    if age > SVARA_MAX_AGE_DAYS:
+        reasons.append(f"last checked {svara['checked']}, {age} days ago")
+    left = (dt.date.fromisoformat(max(svara["dates"])) - today).days
+    if left < SVARA_MIN_HORIZON_DAYS:
+        reasons.append(f"published dates end {max(svara['dates'])}, {left} days away")
+    return reasons
 
 
 def merge_history(old: list[str], live: list[str], today: str) -> list[str]:
@@ -110,6 +131,15 @@ def update_dist(schedules: dict[str, list[str]], today: str) -> None:
 
 
 def main() -> int:
+    if "--check-svara" in sys.argv:
+        reasons = svara_check_due(dt.date.today())
+        if not reasons:
+            print("Švara dates are recent enough.")
+            return 0
+        print("Švara needs a manual check: " + "; ".join(reasons))
+        print("Ask Claude to refresh the Švara dates (tools/svara_session_dates.js).")
+        return 3
+
     today = dt.date.today().isoformat()
     live = live_dates()
 
