@@ -92,7 +92,10 @@ Found the hard way; all three are undocumented:
   dedicated Google calendar with two default notifications, not a change to the file.
   Worse in practice: on the 2026-10-18 phone re-import **none** of the 38 events kept
   either alarm — all use the calendar's default reminder. (One July event, 2026-08-04, did
-  keep both; the reason is unknown.)
+  keep both; the reason is unknown.) Repair after each import: Google Calendar MCP
+  `update_event` on every upcoming event with `useDefaultReminders: false` and popup overrides
+  420 and 240 min (= 17:00 and 20:00 the evening before), `notificationLevel: NONE`. The event
+  id is `_` + lowercase base32hex of the UID, no padding. Done for all 38 on 2026-10-18.
 - **Google ignores `COLOR:`.** The colour coding is carried by an emoji in the summary
   instead, chosen to match the app's neon palette.
 - **`RRULE` cannot express off-cycle dates**, which is why every pickup is its own event.
