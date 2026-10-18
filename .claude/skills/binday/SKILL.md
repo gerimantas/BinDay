@@ -12,7 +12,9 @@ description: >
   svara.lt, ekonovus.lt, waste pickup dates, or bin collection schedule. Also trigger for:
   refreshing or diagnosing a failed schedule refresh, checking when the next pickup is,
   adding an address or municipality, verifying scraped dates against the operator site,
-  rebuilding dist/, or changing the app's UI, calendar export or caching.
+  rebuilding dist/, or changing the app's UI, calendar export or caching. Also for the
+  user's Google Calendar copy of the pickups: "ar kalendorius atsinaujino", "patikrink
+  kalendorių", "sutvarkyk priminimus", missing or duplicate pickup events.
   Even a casual "kada isveza siuksles" or "atnaujink grafikus" should bring this skill in —
   both operators serve valid-looking wrong answers, and hand-rolling the path wastes a lot
   of time.
@@ -233,16 +235,36 @@ Rules that break things when ignored:
 - **Write files as UTF-8 explicitly.** Windows defaults to cp1252 and Lithuanian diacritics
   crash the write.
 
-Calendar export limits, all found the hard way and all undocumented: **Google keeps only the
-first `VALARM`** (the file carries 17:00 and 20:00 the evening before; Google drops the
-second — fix is a dedicated calendar with two default notifications, not a change to the
-file), **Google ignores `COLOR:`** (colour is carried by an emoji in the summary instead),
-and **`RRULE` cannot express off-cycle dates**. Event UIDs are stable per date
-(`binday-YYYYMMDD@binday.local` since the first release). Google derives its event id from
-that UID (base32hex: `_c9kmsp31…` decodes to `binday-20261027@binday.local`), so a re-import
-targets the same events instead of adding copies. The app knows only that the file was
-downloaded, not whether it reached the calendar. The 2026-07-31 import was made from the
-phone with the app's button.
+### The user's Google Calendar
+
+The user keeps the pickups in Google Calendar `gerimantas.v@gmail.com`. Nothing about it is
+automatic: new dates reach it only when the user presses the app's calendar button again.
+
+**How the import works (Android, measured 2026-10-18).** The button only saves `binday.ics`
+to Downloads; the app cannot see the calendar and says only "Kalendoriaus failas
+atsisiųstas". The import happens when the user opens the file from the download
+notification or *Mano failai → Atsisiuntimai* and picks the calendar app.
+
+**Re-import updates in place.** Event UIDs are `binday-YYYYMMDD@binday.local` (unchanged since
+the first release) and Google's event id is `_` + lowercase base32hex of the UID, no padding
+(`_c9kmsp31f4mj4c1i6ooj0chn81h6irj4c5sisr3fcdgmo` = `binday-20261027@binday.local`). The
+2026-10-18 re-import updated 24 events, added 14, duplicated none. Never change the UID form:
+every event already in the calendar would be duplicated.
+
+**Google drops the file's reminders.** The file carries `VALARM`s at 17:00 and 20:00 the
+evening before; on the 2026-10-18 import none of the 38 events kept either (all fell back to
+the calendar default). **Repair after every import**, once the user says yes:
+
+1. Read the events (Haiku subagent, `list_events` on `gerimantas.v@gmail.com` from today to
+   the last `until`, raw output saved) and check every app date is present once.
+2. For each upcoming BinDay event, Google Calendar MCP `update_event` with
+   `useDefaultReminders: false`, `overrideReminders` popup 420 and popup 240 (= 17:00 and
+   20:00 the evening before an all-day event), `notificationLevel: NONE`. Try one event
+   first and read the response back.
+
+Other client limits, all undocumented: **Google ignores `COLOR:`** (colour is carried by an
+emoji in the summary instead), and **`RRULE` cannot express off-cycle dates**, which is why
+every pickup is its own event.
 
 `update_zalgirio_schedule.py` edits `src/js/data.js` by regex: keep `DEFAULT_SCHEDULE`,
 `DEFAULT_COLLECTED` and the `DEFAULT_CHECKED_*` lines named and shaped as they are.

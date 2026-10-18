@@ -83,34 +83,11 @@ crash the write.
 **Keep `apple-touch-icon.png`.** iOS ignores the manifest icons when adding to the home
 screen and substitutes a screenshot of the page without it.
 
-## Calendar export — known client limits
+## Calendar export
 
-Found the hard way; all three are undocumented:
-
-- **Google keeps only the first `VALARM`** from an imported ICS. The file correctly carries
-  reminders at 17:00 and 20:00 the evening before; Google drops the second. Fix is a
-  dedicated Google calendar with two default notifications, not a change to the file.
-  Worse in practice: on the 2026-10-18 phone re-import **none** of the 38 events kept
-  either alarm — all use the calendar's default reminder. (One July event, 2026-08-04, did
-  keep both; the reason is unknown.) Repair after each import: Google Calendar MCP
-  `update_event` on every upcoming event with `useDefaultReminders: false` and popup overrides
-  420 and 240 min (= 17:00 and 20:00 the evening before), `notificationLevel: NONE`. The event
-  id is `_` + lowercase base32hex of the UID, no padding. Done for all 38 on 2026-10-18.
-- **Google ignores `COLOR:`.** The colour coding is carried by an emoji in the summary
-  instead, chosen to match the app's neon palette.
-- **`RRULE` cannot express off-cycle dates**, which is why every pickup is its own event.
-
-Event UIDs are stable per date (`binday-YYYYMMDD@binday.local`, unchanged since the first
-release). Google derives its event id from the UID — `_c9kmsp31…` is base32hex of
-`binday-20261027@binday.local` — so a re-import targets the same events, not new copies.
-Confirmed 2026-10-18: re-import from the phone updated 24 events, added 14, no duplicates.
-On Android the button only saves the file to Downloads; the import happens when the user
-opens `binday.ics` from the download notification or Files and picks the calendar app.
-
-**The app cannot see the calendar.** It records only that the file was downloaded, and the
-button says exactly that. The 2026-07-31 import was made from the phone with the app's
-button and was still the only one on 2026-10-18, ending 2027-07-20. Updating needs another
-press of the button each time new dates arrive — nothing is automatic.
+**Never change the ICS UID form** (`binday-YYYYMMDD@binday.local`): every event already in
+the user's calendar would be duplicated. How the import works, what Google drops, and how to
+repair the reminders after an import: `binday` skill, section "The user's Google Calendar".
 
 ## The data pipeline
 
