@@ -985,20 +985,23 @@ function render(now) {
   if (cal.kind === 'none') {
     calTitle = 'Įkelti į kalendorių';
     // Imports made before this record existed leave no trace, so do not claim
-    // "not imported" — re-importing is harmless, the UIDs are per date.
+    // "not imported". Whether a re-import duplicates events is unverified, so
+    // the text promises nothing about it.
     calSub = `${pickups}, priminimai 17:00 ir 20:00 iš vakaro · įkėlimo įrašo nėra; `
-      + 'jei jau įkėlei anksčiau, įkelk dar kartą — dublikatų nebus';
+      + 'jei jau įkėlei anksčiau, įkelk dar kartą';
   } else if (cal.kind === 'current') {
     calClass = 'synced';
-    calTitle = '<span class="tick" aria-hidden="true">✓</span> Kalendorius atnaujintas';
-    calSub = `Įkelta ${cal.at} · grafikas nuo to laiko nepasikeitė`;
+    calTitle = '<span class="tick" aria-hidden="true">✓</span> Kalendoriaus failas atsisiųstas';
+    // Only the download is known; the app cannot see whether the file was imported.
+    calSub = `Atsisiųsta ${cal.at} · grafikas nuo to laiko nepasikeitė. `
+      + 'Google kalendoriui failą įkelk kompiuteryje: calendar.google.com → Nustatymai → Importuoti';
   } else {
     calClass = 'stale';
     calTitle = 'Atnaujinti kalendorių';
     const what = [];
     if (cal.changed) what.push(ltCount(cal.changed, 'nauja ar pakeista data', 'naujos ar pakeistos datos', 'naujų ar pakeistų datų'));
     if (cal.cancelled.length) what.push(`atšaukta: ${cal.cancelled.join(', ')} — ištrink kalendoriuje ranka`);
-    calSub = `Grafikas pasikeitė po įkėlimo ${cal.at}: ${what.join('; ')}`;
+    calSub = `Grafikas pasikeitė po atsisiuntimo ${cal.at}: ${what.join('; ')}`;
   }
 
   html += `
@@ -1167,9 +1170,10 @@ function downloadICS(entries) {
   markExported(entries);
 }
 
-/* What was last put into the calendar from this phone, so the button can say
-   whether the calendar is current. The app cannot see the calendar itself — it
-   only knows what it handed over, so "įkelta" means "the file was opened here".
+/* What was last downloaded as a calendar file from this phone, so the button can
+   say whether that file is current. The app cannot see the calendar itself — it
+   only knows what it handed over, so "atsisiųsta" means "the file was downloaded
+   here"; whether it was imported is unknown.
 
    Keyed by the address's container ids rather than the saved-address index: the
    index shifts when an address is removed, the containers do not. Each pickup is
@@ -1214,14 +1218,14 @@ function markExported(entries) {
 
 /* none: never exported for this address. current: the calendar holds every
    upcoming pickup. stale: pickups were added, changed or cancelled since the
-   export — re-importing fixes the first two (UIDs are per date), but a cancelled one stays
-   in the calendar until deleted by hand, so those dates are listed. */
+   download — importing the new file should update the first two (UIDs are per date), but a
+   cancelled one stays in the calendar until deleted by hand, so those dates are listed. */
 function exportState(upcoming, today) {
   const last = loadExports()[calendarKey()];
   if (!last || !Array.isArray(last.pickups)) return { kind: 'none' };
   const had = new Set(last.pickups);
   const days = new Set(upcoming.map(e => e.iso));
-  // New or changed days: one event per day, so re-importing fixes both.
+  // New or changed days: one event per day, so a fresh file covers both.
   const changed = upcoming.filter(e => !had.has(pickupSig(e))).length;
   // A day gone entirely has no event to overwrite it.
   const cancelled = last.pickups
@@ -1985,7 +1989,7 @@ async function fillDataInfo() {
 
 $('icsAll').addEventListener('click', () => {
   const entries = buildCalendar().filter(e => e.iso >= isoLocal(new Date()));
-  if (entries.length) downloadICS(entries);
+  if (entries.length) { downloadICS(entries); refresh(); }
 });
 
 $('gear').addEventListener('click', async () => {

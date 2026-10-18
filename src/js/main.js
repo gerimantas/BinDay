@@ -33,7 +33,7 @@ async function fillDataInfo() {
 
 $('icsAll').addEventListener('click', () => {
   const entries = buildCalendar().filter(e => e.iso >= isoLocal(new Date()));
-  if (entries.length) downloadICS(entries);
+  if (entries.length) { downloadICS(entries); refresh(); }
 });
 
 $('gear').addEventListener('click', async () => {

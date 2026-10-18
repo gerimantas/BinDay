@@ -130,9 +130,10 @@ function downloadICS(entries) {
   markExported(entries);
 }
 
-/* What was last put into the calendar from this phone, so the button can say
-   whether the calendar is current. The app cannot see the calendar itself — it
-   only knows what it handed over, so "įkelta" means "the file was opened here".
+/* What was last downloaded as a calendar file from this phone, so the button can
+   say whether that file is current. The app cannot see the calendar itself — it
+   only knows what it handed over, so "atsisiųsta" means "the file was downloaded
+   here"; whether it was imported is unknown.
 
    Keyed by the address's container ids rather than the saved-address index: the
    index shifts when an address is removed, the containers do not. Each pickup is
@@ -177,14 +178,14 @@ function markExported(entries) {
 
 /* none: never exported for this address. current: the calendar holds every
    upcoming pickup. stale: pickups were added, changed or cancelled since the
-   export — re-importing fixes the first two (UIDs are per date), but a cancelled one stays
-   in the calendar until deleted by hand, so those dates are listed. */
+   download — importing the new file should update the first two (UIDs are per date), but a
+   cancelled one stays in the calendar until deleted by hand, so those dates are listed. */
 function exportState(upcoming, today) {
   const last = loadExports()[calendarKey()];
   if (!last || !Array.isArray(last.pickups)) return { kind: 'none' };
   const had = new Set(last.pickups);
   const days = new Set(upcoming.map(e => e.iso));
-  // New or changed days: one event per day, so re-importing fixes both.
+  // New or changed days: one event per day, so a fresh file covers both.
   const changed = upcoming.filter(e => !had.has(pickupSig(e))).length;
   // A day gone entirely has no event to overwrite it.
   const cancelled = last.pickups
