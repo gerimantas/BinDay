@@ -1060,8 +1060,11 @@ function buildICS(entries) {
 
     lines.push(
       'BEGIN:VEVENT',
-      // Stable UID per day: re-importing updates the event instead of duplicating it.
-      `UID:binday-${compact}@binday.local`,
+      // Stable UID per day and per address: re-importing updates the event instead of
+      // duplicating it, and two addresses in one calendar do not overwrite each other.
+      // Žalgirio keeps the original date-only form because those events are already
+      // in the user's calendar.
+      fold(`UID:${uidFor(compact)}`),
       `DTSTAMP:${stamp(now)}`,
       `DTSTART;VALUE=DATE:${compact}`,
       `DTEND;VALUE=DATE:${end}`,
@@ -1120,6 +1123,22 @@ const CAL_STORE = 'binday.calendar';
 
 function calendarKey() {
   return getSchedule().map(c => c.id).sort().join(',');
+}
+
+/* FNV-1a, 32-bit. Only needs to tell addresses apart inside one UID, not resist attack. */
+function hash32(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+function uidFor(compact) {
+  return isMonitoredSchedule()
+    ? `binday-${compact}@binday.local`
+    : `binday-${compact}-${hash32(calendarKey())}@binday.local`;
 }
 
 function pickupSig(e) {
