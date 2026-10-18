@@ -69,15 +69,6 @@ $('q').addEventListener('input', () => {
 applyActive();
 setInterval(refresh, 60000);
 
-/* Look for a new build, in the background and after the first paint. Rate
-   limited to twice a day inside checkForNewData(); offline it does nothing and
-   the cached schedule stays correct. */
-setTimeout(() => {
-  checkForNewData()
-    .then(changed => changed.length && applyNewData(changed))
-    .then(applied => { if (applied) showUpdate('Grafikas atnaujintas.'); })
-    .catch(() => {});
-}, 2000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();
 });
