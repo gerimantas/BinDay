@@ -31,17 +31,13 @@ SW = "sw.js"
 # Dependency order, not alphabetical. data.js defines the schedule accessors every
 # other module reads; main.js wires up listeners and must run last.
 ORDER = [
-    "data.js",       # ADDRESS, DEFAULT_SCHEDULE, get/setActiveSchedule, get/setActiveAddress, weekday names
+    "data.js",       # ADDRESS, DEFAULT_SCHEDULE, getSchedule, weekday names
     "dates.js",      # isoLocal, parseISO, daysBetween, prettyDate, relativeLabel
     "calendar.js",   # buildCalendar
     "render.js",     # expanded flag, render
     "ics.js",        # icsEscape, fold, stamp, buildICS, downloadICS, refresh
-    "storage.js",    # STORE, loadSaved, persist, saved
-    "catalog.js",    # CATALOG, TYPE_META, getIndex, getArea
-    "search.js",     # normalise, tokens, addressKey, searchAddresses, typeDots
-    "settings.js",   # the sheet: renderSaved, fillAreas, doSearch, locate, applyActive
     "update.js",     # showUpdate, registerServiceWorker — the "new version" offer
-    "main.js",       # listeners and startup only
+    "main.js",       # startup only
 ]
 
 
