@@ -2,11 +2,18 @@
 
 ## Status
 
-**active** — 2026-10-12 (S7)
+**active** — 2026-10-18 (S8)
 
-Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ (`binday-v27`).
-Only Žalgirio g. 8A is monitored; bulk refresh automation was removed 2026-09-14 by user
-decision.
+Waste collection schedule PWA, live at https://gerimantas.github.io/BinDay/ (`binday-v38`).
+**Serves Žalgirio g. 8A only** (user decision S8): address picker, saved addresses,
+geolocation, settings and the `dist/` download were removed from the app. `dist/` (40 959
+addresses) and the bulk tools stay in the repo, unused by the app.
+
+**Calendar:** the user's Google Calendar holds all 38 upcoming pickups to 2028-01-04
+(re-imported from the phone 2026-10-18, no duplicates). Google drops the file's reminders on
+import, so 17:00/20:00 were set per event via Calendar MCP. Nothing is automatic: new dates
+need a button press, opening `binday.ics`, then the reminder repair — `binday` skill,
+"The user's Google Calendar".
 
 **Švara now blocks automated requests (Cloudflare Turnstile, since ~2026-10-05).** Every
 API/PDF/ICS call without a session cookie gets HTTP 403, from a runner or a home IP. The
@@ -18,13 +25,6 @@ is >92 days old or its dates end within 90 days — first expected ~2027-01-12. 
 tools (`fetch_svara.js`, `fetch_dates_svara.mjs`) are broken by the same gate** — dormant,
 not fixed.
 
-**App, S6:** footer shows the last check per operator (Ekonovus / Kauno švara); the calendar
-button says whether the calendar is current (records each export per address); a new build
-is offered with "Yra nauja programėlės versija · Atnaujinti" instead of swapping in silently.
-
-**Prior status (S5, 2026-08-03):** published `dist/` sound (40 959 addresses, gate passing);
-Ekonovus dates take four requests (~1.5 min) instead of 266.
-
 ## Next Tasks
 
 - **When GitHub emails "Run failed: Žalgirio 8A schedule update", refresh Švara by hand.**
@@ -32,25 +32,20 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
   with `javascript_tool` on that tab, save the result to `data/zalgirio_svara.json`, then
   `python tools/update_zalgirio_schedule.py`, `python tools/build_app.py`. On 403/404 with a live session the function ids changed —
   method in `.claude/skills/binday/references/svara-address-api.md`.
-- **ICS `LOCATION` is always Žalgirio g. 8A** (`src/js/ics.js`, uses `ADDRESS`), even when
-  another saved address is active. Use the active address.
-- **`binday` SKILL.md still describes `refresh.yml` monthly automation**, removed 2026-09-14.
-  Rewrite the "Refreshing" section for the Žalgirio-only + manual-Švara world.
-- **Migrate saved addresses from the pre-S4 shape.** Entries saved before this session hold
-  Švara's full address string and no `key`, so they match on address and keep working, but
-  they will never pick up new data. Re-resolve them through the index on load and mark any
-  that fail rather than dropping them — a user whose addresses vanish silently has no way
-  to know why. Also: a saved *building* may now resolve to several flats with different
-  schedules, so ask rather than picking one.
+- **Automatic calendar sync — user wants it, not built.** Two options offered S8: (1) an
+  `.ics` subscription URL on Pages, added once via Google "From URL" (refresh 12–24 h,
+  reminders unverified); (2) GitHub Actions writing events through a Google service account.
+  User has not chosen.
+- **App defects left for the Žalgirio-only app** (found S8, not fixed): `sw.js` precaches only
+  `./index.html`, so an offline launch via `/BinDay/` or the QR link may fail; install may
+  precache a stale `index.html` from the HTTP cache; ICS `DTEND` uses `+864e5` (wrong on DST
+  fall-back days, no Žalgirio pickup affected); ICS lacks a trailing CRLF; expired-schedule
+  footer shows developer text "Perscrapink…".
+- **`binday` evals are stale:** `.evals/README.md` points to `C:\Users\retco\.ai-skills\binday`
+  (does not exist) and scenarios assume the multi-address app. Rewrite before re-running.
 - **337 addresses (0.8%) still have a container without dates.** Not investigated: whether
   the operators publish nothing for them or the parse misses them. `check_dist.py` enforces
   a 90% floor per operator, so this is visible but tolerated.
-- **Second calendar reminder does not survive Google import.** Google Calendar keeps only
-  the first `VALARM` from an imported ICS, so the 20:00 alert is dropped and only 17:00
-  shows. Fix by creating a dedicated `BinDay` calendar in Google with two default event
-  notifications (1 day before at 17:00 and at 20:00) and importing into it — the file
-  itself is correct and needs no change. Alternative if that's unwanted: emit two timed
-  events on the evening before instead of one all-day event.
 - **`data/Atlieku_isvezimo_grafikai.md` is now orphaned.** It was the canonical schedule
   source when the app shipped one hardcoded address; `dist/` has superseded it and nothing
   reads it. Delete it, or keep it deliberately as a human-readable record and say so.
@@ -63,6 +58,9 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
 
 ## Done Log
 
+- **S8:** App cut to Žalgirio g. 8A only (multi-address code removed, 83 → 38 KB); calendar
+  re-imported from the phone (38 events, no duplicates) and reminders set via Calendar MCP;
+  docs and `binday` skill corrected (16 stale claims).
 - **S7:** Švara refresh moved from Playwright MCP to Claude in Chrome (BrowserOS neo blocked
   by Smart App Control); verified live, dates unchanged.
 - **S6:** Diagnosed the two failed Žalgirio runs (2026-10-05, 10-12): Švara Turnstile 403,
@@ -146,11 +144,31 @@ Ekonovus dates take four requests (~1.5 min) instead of 266.
 - Švara ids for Žalgirio: `hashedId=EKzJW7DK` (drives the post-2026-10 schedule function),
   `wasteObjectId=279722`. The unauthenticated PDF fast path (`/api/download/<hashedId>`)
   returns 403 since 2026-10.
-- Ten SKILL.md files carry a UTF-8 BOM from a batch install (2026-04-01 and 2026-04-07).
+- Seven SKILL.md files carry a UTF-8 BOM from a batch install (2026-04-01 and 2026-04-07;
+  counted 2026-10-18).
   Harmless to the index generator, but any tool anchoring on `^---$` will miss their
   frontmatter.
 
 ## Archive
+
+### Session 2026-10-18 — S8: app cut to Žalgirio only; calendar re-imported, reminders repaired
+
+- **Done:** bug hunt (3 agents) found 17 app defects + 16 stale doc claims; fixed LOCATION,
+  per-address UIDs, the 4 worst multi-address bugs, then removed all multi-address code
+  (picker, saved addresses, geolocation, settings, `dist/` download) — page 83 KB → 38 KB,
+  ICS and page text byte-identical. Docs rewritten. User re-imported the calendar from the
+  phone: 38 events to 2028-01-04, 24 updated / 14 new / 0 duplicates. Google dropped both
+  VALARMs; reminders 17:00/20:00 set on all 38 via Calendar MCP. Live `binday-v38`.
+- **Decided / overturned:** app serves Žalgirio g. 8A only (user, option 1: `dist/` and bulk
+  tools kept). Overturned: "phone Google Calendar cannot import .ics" (it did, twice);
+  "re-import may duplicate" (Google event id = base32hex of the UID, confirmed in place).
+- **Code:** deleted `src/js/{catalog,search,settings,storage,version}.js`; changed
+  `src/js/{data,ics,main,render}.js`, `src/index.html`, `src/styles.css`, `sw.js`,
+  `tools/build_app.py`, `CLAUDE.md`, `.claude/skills/binday/SKILL.md`.
+- **Entry point:** `python tools/build_app.py`; calendar procedure: `binday` skill, section
+  "The user's Google Calendar".
+- **Not measured:** `binday` evals not re-run (they assume the multi-address app); whether
+  the next re-import resets the reminders again; automatic calendar sync not built.
 
 ### Session 2026-10-12 — S7: Švara refresh moved to Claude in Chrome
 
