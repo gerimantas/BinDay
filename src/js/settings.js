@@ -50,6 +50,8 @@ function renderSaved() {
     del.addEventListener('click', ev => {
       ev.stopPropagation();
       saved.list.splice(i, 1);
+      // Removing an earlier entry shifts the active one down; follow it.
+      if (i < saved.active) saved.active--;
       if (saved.active >= saved.list.length) saved.active = Math.max(0, saved.list.length - 1);
       persist(saved); renderSaved(); applyActive();
     });
