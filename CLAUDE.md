@@ -98,13 +98,13 @@ Found the hard way; all three are undocumented:
 - **`RRULE` cannot express off-cycle dates**, which is why every pickup is its own event.
 
 Event UIDs are stable per date (`binday-YYYYMMDD@binday.local`, unchanged since the first
-release) so a re-import should update events rather than duplicate them — **unverified
-against Google**; check for duplicates after the next import.
+release). Google derives its event id from the UID — `_c9kmsp31…` is base32hex of
+`binday-20261027@binday.local` — so a re-import targets the same events, not new copies.
 
 **The app cannot see the calendar.** It records only that the file was downloaded, and the
-button says exactly that. A phone's Google Calendar app does not import `.ics` files: the
-import goes through calendar.google.com → Settings → Import on a computer. The 2026-07-31
-import was still the only one on 2026-10-18, ending 2027-07-20.
+button says exactly that. The 2026-07-31 import was made from the phone with the app's
+button and was still the only one on 2026-10-18, ending 2027-07-20. Updating needs another
+press of the button each time new dates arrive — nothing is automatic.
 
 ## The data pipeline
 

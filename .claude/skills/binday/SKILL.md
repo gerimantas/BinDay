@@ -238,9 +238,11 @@ first `VALARM`** (the file carries 17:00 and 20:00 the evening before; Google dr
 second — fix is a dedicated calendar with two default notifications, not a change to the
 file), **Google ignores `COLOR:`** (colour is carried by an emoji in the summary instead),
 and **`RRULE` cannot express off-cycle dates**. Event UIDs are stable per date
-(`binday-YYYYMMDD@binday.local` since the first release), so a re-import should update rather
-than duplicate — unverified against Google. The app knows only that the file was downloaded;
-a phone's Google Calendar app cannot import `.ics`, so import on calendar.google.com.
+(`binday-YYYYMMDD@binday.local` since the first release). Google derives its event id from
+that UID (base32hex: `_c9kmsp31…` decodes to `binday-20261027@binday.local`), so a re-import
+targets the same events instead of adding copies. The app knows only that the file was
+downloaded, not whether it reached the calendar. The 2026-07-31 import was made from the
+phone with the app's button.
 
 `update_zalgirio_schedule.py` edits `src/js/data.js` by regex: keep `DEFAULT_SCHEDULE`,
 `DEFAULT_COLLECTED` and the `DEFAULT_CHECKED_*` lines named and shaped as they are.

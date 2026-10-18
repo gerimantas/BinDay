@@ -647,8 +647,7 @@ function render(now) {
     calClass = 'synced';
     calTitle = '<span class="tick" aria-hidden="true">✓</span> Kalendoriaus failas atsisiųstas';
     // Only the download is known; the app cannot see whether the file was imported.
-    calSub = `Atsisiųsta ${cal.at} · grafikas nuo to laiko nepasikeitė. `
-      + 'Google kalendoriui failą įkelk kompiuteryje: calendar.google.com → Nustatymai → Importuoti';
+    calSub = `Atsisiųsta ${cal.at} · grafikas nuo to laiko nepasikeitė`;
   } else {
     calClass = 'stale';
     calTitle = 'Atnaujinti kalendorių';
