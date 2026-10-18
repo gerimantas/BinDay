@@ -11,6 +11,22 @@
    app says "refresh needed" instead of inventing dates.
 ------------------------------------------------------------------ */
 const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav.';
+/* The address whose schedule is on screen, written into each ICS event's
+   LOCATION. ADDRESS stays the shipped default; this follows the saved address.
+
+   Read through getActiveAddress() for the same reason as getSchedule(): a value
+   that changes with the active address must not be a binding other modules
+   captured at load time. */
+let activeAddress = ADDRESS;
+
+function getActiveAddress() {
+  return activeAddress;
+}
+
+function setActiveAddress(address) {
+  activeAddress = address || ADDRESS;
+}
+
 /* When the operators were last asked for the schedule currently on screen.
 
    This is per-address, not per-build: the shipped Juragiai schedule was

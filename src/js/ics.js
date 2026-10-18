@@ -85,7 +85,7 @@ function buildICS(entries) {
       `DTEND;VALUE=DATE:${end}`,
       fold(`SUMMARY:${marks} ${icsEscape(names)}`),
       fold(`DESCRIPTION:${icsEscape(detail)}`),
-      fold(`LOCATION:${icsEscape(ADDRESS)}`),
+      fold(`LOCATION:${icsEscape(getActiveAddress())}`),
       // Honoured by Apple Calendar and anything else implementing RFC 7986;
       // harmless where it isn't. A day can hold several bins but only one colour,
       // so it goes to the rarest one due — glass never falls on its own here, and

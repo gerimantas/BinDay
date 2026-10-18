@@ -234,12 +234,14 @@ function applyActive() {
   if (!a) {
     setActiveSchedule();          // back to the shipped Juragiai schedule
     setCollected(null);
+    setActiveAddress();
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
   }
   document.getElementById('addr').textContent = shortAddress(a.address);
   setCollected(a.collected);
+  setActiveAddress(a.address);
 
   if (a.schedule && a.schedule.length) {
     setActiveSchedule(a.schedule);

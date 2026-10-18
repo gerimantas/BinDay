@@ -653,6 +653,22 @@
    app says "refresh needed" instead of inventing dates.
 ------------------------------------------------------------------ */
 const ADDRESS = 'Žalgirio g. 8A, Juragių k., Garliavos apylinkių sen. Kauno r. sav.';
+/* The address whose schedule is on screen, written into each ICS event's
+   LOCATION. ADDRESS stays the shipped default; this follows the saved address.
+
+   Read through getActiveAddress() for the same reason as getSchedule(): a value
+   that changes with the active address must not be a binding other modules
+   captured at load time. */
+let activeAddress = ADDRESS;
+
+function getActiveAddress() {
+  return activeAddress;
+}
+
+function setActiveAddress(address) {
+  activeAddress = address || ADDRESS;
+}
+
 /* When the operators were last asked for the schedule currently on screen.
 
    This is per-address, not per-build: the shipped Juragiai schedule was
@@ -1051,7 +1067,7 @@ function buildICS(entries) {
       `DTEND;VALUE=DATE:${end}`,
       fold(`SUMMARY:${marks} ${icsEscape(names)}`),
       fold(`DESCRIPTION:${icsEscape(detail)}`),
-      fold(`LOCATION:${icsEscape(ADDRESS)}`),
+      fold(`LOCATION:${icsEscape(getActiveAddress())}`),
       // Honoured by Apple Calendar and anything else implementing RFC 7986;
       // harmless where it isn't. A day can hold several bins but only one colour,
       // so it goes to the rarest one due — glass never falls on its own here, and
@@ -1604,12 +1620,14 @@ function applyActive() {
   if (!a) {
     setActiveSchedule();          // back to the shipped Juragiai schedule
     setCollected(null);
+    setActiveAddress();
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
   }
   document.getElementById('addr').textContent = shortAddress(a.address);
   setCollected(a.collected);
+  setActiveAddress(a.address);
 
   if (a.schedule && a.schedule.length) {
     setActiveSchedule(a.schedule);

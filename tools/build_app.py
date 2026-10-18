@@ -31,7 +31,7 @@ SW = "sw.js"
 # Dependency order, not alphabetical. data.js defines the schedule accessors every
 # other module reads; main.js wires up listeners and must run last.
 ORDER = [
-    "data.js",       # ADDRESS, DEFAULT_SCHEDULE, get/setActiveSchedule, weekday names
+    "data.js",       # ADDRESS, DEFAULT_SCHEDULE, get/setActiveSchedule, get/setActiveAddress, weekday names
     "dates.js",      # isoLocal, parseISO, daysBetween, prettyDate, relativeLabel
     "calendar.js",   # buildCalendar
     "render.js",     # expanded flag, render
