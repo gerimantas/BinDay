@@ -4,9 +4,9 @@ description: >
   Work on BinDay — the Lithuanian waste collection schedule PWA at
   C:\Users\retco\Projects\BinDay — and maintain the data pipeline that feeds it from
   grafikai.svara.lt (UAB Kauno švara) and ekonovus.lt (Ekonovus Power BI report).
-  Covers the app itself (built from src/, ICS calendar export, service worker cache,
-  address picker and settings) and the fetch → dist → publish pipeline that supplies its
-  schedules.
+  Covers the app itself (built from src/, one address only, ICS calendar export, service
+  worker cache), the monthly Žalgirio g. 8A update, and the dormant fetch → dist pipeline
+  for the whole of Kauno r.
   Use this skill whenever the user mentions BinDay, atliekų grafikai, atliekų išvežimas,
   šiukšlių išvežimas, mišrios komunalinės, pakuotės, stiklas, konteinerio numeris,
   svara.lt, ekonovus.lt, waste pickup dates, or bin collection schedule. Also trigger for:
@@ -22,14 +22,17 @@ description: >
 
 `C:\Users\retco\Projects\BinDay` · live at https://gerimantas.github.io/BinDay/
 
-The app serves **40 959 Kauno r. addresses**, each with its own containers and dates, from
-static JSON on GitHub Pages. No backend. It fetches `dist/`, never an operator.
+**The app serves one address: Žalgirio g. 8A, Juragiai** (user decision, 2026-10-18). Its
+dates ship inside `index.html` (`DEFAULT_SCHEDULE` in `src/js/data.js`); the app fetches
+nothing. The address picker, saved addresses, geolocation and the `dist/` download were
+removed in commits `b01ce95`, `a410532`, `7e540be` — restore from there if more addresses
+are ever wanted. `dist/` (40 959 Kauno r. addresses) and the bulk tools stay in the repo,
+unused by the app.
 
-**Refreshing is automated.** `.github/workflows/refresh.yml` runs monthly behind
-`tools/precheck.py`; `health.yml` checks monthly that both operators still answer and that
-the committed `dist/` still passes its gate. So the usual job here is **diagnosing a run
-that failed**, not scraping by hand. Manual scraping is the fallback and is documented in
-`references/`.
+**Refreshing is partly automated.** `.github/workflows/health.yml` ("Žalgirio 8A schedule
+update", 1st of the month 05:23 UTC) runs `tools/update_zalgirio_schedule.py`: Ekonovus live,
+Švara from `data/zalgirio_svara.json`, then rebuilds the app and validates the committed
+`dist/`. The bulk refresh workflow (`refresh.yml`) was removed 2026-09-14.
 
 **Švara is behind Cloudflare Turnstile since 2026-10.** Every request without a session
 cookie gets HTTP 403 `Užklausa neleidžiama.` — API, PDF and ICS alike, from a runner or a
@@ -45,7 +48,7 @@ user's own Chrome passed without a checkbox on 2026-10-12); the monthly run fail
 
 | The user wants | Go to |
 |---|---|
-| "when is the next pickup" | Read `dist/kauno-r-sav/data.json`, or just open the app. No network. |
+| "when is the next pickup" | Read `DEFAULT_SCHEDULE` in `src/js/data.js`, or open the app. No network. |
 | "atnaujink grafikus" / a schedule looks stale | [Refreshing](#refreshing-the-schedules) |
 | a refresh run failed or timed out | [Diagnosing a failed refresh](#diagnosing-a-failed-refresh) |
 | a change to the app itself | [Working on the app](#working-on-the-app) |
@@ -136,23 +139,26 @@ six blind rebuilds in one session: *guessing was never cheaper than measuring.*
 
 ## Refreshing the schedules
 
-Normally: `gh workflow run "Refresh schedules"`, or `-f force=true` to skip the pre-check.
-Watch it with `gh run list --workflow="Refresh schedules"`.
+Žalgirio g. 8A: `gh workflow run "Žalgirio 8A schedule update"`, watch with
+`gh run list --workflow="Žalgirio 8A schedule update"`. Švara first needs a fresh
+`data/zalgirio_svara.json` from the browser (see the Turnstile paragraph above).
 
-By hand, in order:
+The whole of Kauno r. (only when the user explicitly asks — the app does not use it), by
+hand, in order:
 
 ```bash
 python tools/precheck.py                  # 0 unchanged, 10 changed, 1 could-not-tell
 node   tools/fetch_svara.js               # Kauno r. only; --all or --regions "A,B"
 python tools/fetch_ekonovus.py            # code 52 only; --codes all to widen
-node   tools/fetch_dates_svara.mjs        # ~9 min, 8 concurrent
-python tools/fetch_dates_ekonovus_bulk.py # ~1.5 min, four 20 000-row pages
+node   tools/fetch_dates_svara.mjs        # 2 concurrent by default; ~9 min at --concurrency 8
+python tools/fetch_dates_ekonovus_bulk.py # four 20 000-row pages
 python tools/build_dist.py                # raw/ -> dist/
 python tools/check_dist.py --previous <d> # publish gate; must pass before committing
 ```
 
-**`precheck.py` refreshes on *any* non-zero exit**, including "could not reach the
-operator". Skipping on an inconclusive check is how a stale schedule survives indefinitely.
+The Švara steps are blocked by Turnstile. `precheck.py` exits 0 unchanged, 10 changed, 1
+could-not-tell; treat 1 as "refresh", never as "skip" — skipping on an inconclusive check is
+how a stale schedule survives indefinitely.
 
 **The gate is not optional.** `check_dist.py` is verified by sabotage — `dist/` was broken
 nine ways and each break asserted caught — because a gate that only ever passes is
@@ -175,9 +181,8 @@ and `tools/build_index.py`, which deleted files it had not created and lost `Kau
 twice, was removed rather than guarded a second time.
 
 Every write is atomic (temp, fsync, rename) via `tools/atomic.py` / `atomic.mjs`; each
-`raw/` file carries a `.meta.json` sidecar. `dist/` deliberately carries no sidecars and no
-build timestamp — a timestamp would make an identical rebuild look like new data, and a diff
-that is always there is never read.
+`raw/` file carries a `.meta.json` sidecar. `dist/` carries no sidecars. `dist/version.json`
+does carry a `built` timestamp, written by `update_zalgirio_schedule.py`.
 
 ## Diagnosing a failed refresh
 
@@ -188,10 +193,11 @@ Read the failing step's output before re-running anything; a re-run costs ~30 mi
 | Coverage below 90% for **one** operator | that operator's paging stopped early — Ekonovus 500-row window, or a Švara subdistrict skipped. Not normalisation. |
 | Coverage low for **both** | the merge key changed shape; check `check_dist.py`'s locality/flat witnesses |
 | Address count collapsed to a few thousand | the flat was dropped from the key, or one municipality file failed to write |
-| A whole municipality missing from the picker | `areas.json` is derived from files on disk — the file did not land |
+| A whole municipality missing from `areas.json` | it is derived from files on disk — the file did not land |
 | Rebuild shows as modified but nothing changed | line endings. `.gitattributes` must set `eol=lf`; Windows checks out CRLF while the generators write LF |
 | A cancelled run's log is blank for the failing step | buffered stdout, not a hang. Python buffers to a pipe, and the buffer dies with the process. Both workflows set `PYTHONUNBUFFERED: '1'`; if a new one does not, it is blind. **Silence is not evidence of hanging** — the 2026-08-02 run showed 50 min of nothing and was recorded as "hung, raise the cap" when it was simply slower than planned |
-| The run timed out | a full fetch is ~42 min against a 90 min cap, so something is genuinely stuck rather than merely slow. Read the log *first* — `PYTHONUNBUFFERED: '1'` is set precisely so a cancelled run is readable |
+| The monthly run failed with "Švara needs a manual check" | intended: `data/zalgirio_svara.json` is over 92 days old or its dates end within 90 days. Refresh it in the browser |
+| The run timed out | `health.yml` has a 15 min cap and touches one address, so something is stuck. Read the log *first* — `PYTHONUNBUFFERED: '1'` is set precisely so a cancelled run is readable |
 
 ## Working on the app
 
@@ -231,8 +237,13 @@ Calendar export limits, all found the hard way and all undocumented: **Google ke
 first `VALARM`** (the file carries 17:00 and 20:00 the evening before; Google drops the
 second — fix is a dedicated calendar with two default notifications, not a change to the
 file), **Google ignores `COLOR:`** (colour is carried by an emoji in the summary instead),
-and **`RRULE` cannot express off-cycle dates**. Event UIDs are stable per date, so
-re-importing updates events rather than duplicating them.
+and **`RRULE` cannot express off-cycle dates**. Event UIDs are stable per date
+(`binday-YYYYMMDD@binday.local` since the first release), so a re-import should update rather
+than duplicate — unverified against Google. The app knows only that the file was downloaded;
+a phone's Google Calendar app cannot import `.ics`, so import on calendar.google.com.
+
+`update_zalgirio_schedule.py` edits `src/js/data.js` by regex: keep `DEFAULT_SCHEDULE`,
+`DEFAULT_COLLECTED` and the `DEFAULT_CHECKED_*` lines named and shaped as they are.
 
 ### Verify the rendered result, not the code that renders it
 
@@ -249,6 +260,9 @@ that a property exists proves nothing about whether it is visible:
   hue separation as well as contrast.
 
 ## Adding coverage
+
+The app currently shows one address and has no picker; adding coverage to the *app* means
+restoring the removed code first (commits listed at the top). What follows applies to `dist/`.
 
 **Only municipalities served by BOTH operators are shipped.** A single-operator area shows
 packaging without mixed waste or the reverse, and a schedule that silently omits a bin is
