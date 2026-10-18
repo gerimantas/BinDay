@@ -90,9 +90,9 @@ Found the hard way; all three are undocumented:
 - **Google keeps only the first `VALARM`** from an imported ICS. The file correctly carries
   reminders at 17:00 and 20:00 the evening before; Google drops the second. Fix is a
   dedicated Google calendar with two default notifications, not a change to the file.
-  Unsettled: in the user's calendar (read 2026-10-18) the 2026-08-04 event kept both
-  (popup 240 and 420 min) while the other 31 events of that import fell back to the
-  calendar's default reminder.
+  Worse in practice: on the 2026-10-18 phone re-import **none** of the 38 events kept
+  either alarm — all use the calendar's default reminder. (One July event, 2026-08-04, did
+  keep both; the reason is unknown.)
 - **Google ignores `COLOR:`.** The colour coding is carried by an emoji in the summary
   instead, chosen to match the app's neon palette.
 - **`RRULE` cannot express off-cycle dates**, which is why every pickup is its own event.
@@ -100,6 +100,9 @@ Found the hard way; all three are undocumented:
 Event UIDs are stable per date (`binday-YYYYMMDD@binday.local`, unchanged since the first
 release). Google derives its event id from the UID — `_c9kmsp31…` is base32hex of
 `binday-20261027@binday.local` — so a re-import targets the same events, not new copies.
+Confirmed 2026-10-18: re-import from the phone updated 24 events, added 14, no duplicates.
+On Android the button only saves the file to Downloads; the import happens when the user
+opens `binday.ics` from the download notification or Files and picks the calendar app.
 
 **The app cannot see the calendar.** It records only that the file was downloaded, and the
 button says exactly that. The 2026-07-31 import was made from the phone with the app's
