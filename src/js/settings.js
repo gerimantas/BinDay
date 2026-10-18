@@ -235,6 +235,7 @@ function applyActive() {
     setActiveSchedule();          // back to the shipped Juragiai schedule
     setCollected(null);
     setActiveAddress();
+    setUndated();
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
@@ -243,40 +244,17 @@ function applyActive() {
   setCollected(a.collected);
   setActiveAddress(a.address);
 
-  if (a.schedule && a.schedule.length) {
-    setActiveSchedule(a.schedule);
-    refresh();
-    /* Some containers at this address may have no published dates. Say so
-       rather than letting the schedule read as complete — a bin missing from a
-       schedule the user trusts is the one failure they actually notice. */
-    const dated = new Set(a.schedule.map(c => c.id));
-    const undated = (a.containers || []).filter(c => !dated.has(c.id));
-    if (undated.length) {
-      const names = undated
-        .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
-        .map(m => m.emoji + ' ' + m.label).join(' · ');
-      const note = document.createElement('div');
-      note.className = 'notice';
-      note.style.marginTop = '16px';
-      note.textContent = 'Šiems konteineriams datų kol kas nėra: ' + names
-        + ' (' + undated.map(c => c.id).join(', ') + '). '
-        + 'Rodomas grafikas jų neapima.';
-      document.getElementById('app').appendChild(note);
-    }
-    return;
-  }
-
-  /* No dates at all — make sure a previously selected address's schedule is not
-     left on screen under this one's name. */
-  setActiveSchedule();
-  const types = (a.containers || [])
-    .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
-    .map(m => m.emoji + ' ' + m.label).join(' · ');
-  document.getElementById('app').innerHTML =
-    '<div class="notice">Rasti konteineriai: ' + types
-    + '<br><br>Išvežimo datų šiam adresui operatoriai kol kas neskelbia. '
-    + 'Konteinerių numeriai: '
-    + (a.containers || []).map(c => c.id).join(', ') + '</div>';
+  /* Some containers at this address may have no published dates. Record them for
+     render() rather than drawing here: a notice appended to #app is wiped by the
+     next re-render, and a bin missing from a schedule the user trusts is the one
+     failure they actually notice. */
+  const hasDates = !!(a.schedule && a.schedule.length);
+  const dated = new Set((a.schedule || []).map(c => c.id));
+  const undated = hasDates ? (a.containers || []).filter(c => !dated.has(c.id))
+                           : (a.containers || []);
+  setActiveSchedule(hasDates ? a.schedule : undefined);
+  setUndated(undated, !hasDates);
+  refresh();
 }
 
 function showPage(which) {

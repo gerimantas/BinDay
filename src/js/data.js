@@ -118,6 +118,22 @@ function setActiveSchedule(list) {
   activeSchedule = (list && list.length) ? list : DEFAULT_SCHEDULE;
 }
 
+/* Containers of the active saved address that have no published dates.
+
+   applyActive() only records them here; render() is the one place that draws
+   #app, so the notice survives the 60 s re-render. `none` means no container at
+   the address has dates — render() then shows only the notice, never the shipped
+   Juragiai schedule under another address's name. */
+let activeUndated = { containers: [], none: false };
+
+function getUndated() {
+  return activeUndated;
+}
+
+function setUndated(containers, none) {
+  activeUndated = { containers: containers || [], none: !!none };
+}
+
 const WD = ['Sekmadienis','Pirmadienis','Antradienis','Trečiadienis',
             'Ketvirtadienis','Penktadienis','Šeštadienis'];
 const WD_SHORT = ['Sekm','Pir','Ant','Tre','Ket','Pen','Šeš'];

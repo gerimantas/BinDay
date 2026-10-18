@@ -760,6 +760,22 @@ function setActiveSchedule(list) {
   activeSchedule = (list && list.length) ? list : DEFAULT_SCHEDULE;
 }
 
+/* Containers of the active saved address that have no published dates.
+
+   applyActive() only records them here; render() is the one place that draws
+   #app, so the notice survives the 60 s re-render. `none` means no container at
+   the address has dates — render() then shows only the notice, never the shipped
+   Juragiai schedule under another address's name. */
+let activeUndated = { containers: [], none: false };
+
+function getUndated() {
+  return activeUndated;
+}
+
+function setUndated(containers, none) {
+  activeUndated = { containers: containers || [], none: !!none };
+}
+
 const WD = ['Sekmadienis','Pirmadienis','Antradienis','Trečiadienis',
             'Ketvirtadienis','Penktadienis','Šeštadienis'];
 const WD_SHORT = ['Sekm','Pir','Ant','Tre','Ket','Pen','Šeš'];
@@ -819,7 +835,42 @@ function buildCalendar() {
    the minute-tick re-render reads it, but a fresh open should start compact. */
 let expanded = false;
 
+/* The notices for the active saved address's containers without dates. Built from
+   text nodes: container ids and types come from storage, not from this file. */
+function undatedNotice() {
+  const { containers, none } = getUndated();
+  if (!containers.length) return null;
+  const note = document.createElement('div');
+  note.className = 'notice';
+  if (none) {
+    const types = containers
+      .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
+      .map(m => m.emoji + ' ' + m.label).join(' · ');
+    note.append('Rasti konteineriai: ' + types, document.createElement('br'),
+      document.createElement('br'),
+      'Išvežimo datų šiam adresui operatoriai kol kas neskelbia. '
+      + 'Konteinerių numeriai: ' + containers.map(c => c.id).join(', '));
+    return note;
+  }
+  const names = containers
+    .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
+    .map(m => m.emoji + ' ' + m.label).join(' · ');
+  note.style.marginTop = '16px';
+  note.textContent = 'Šiems konteineriams datų kol kas nėra: ' + names
+    + ' (' + containers.map(c => c.id).join(', ') + '). '
+    + 'Rodomas grafikas jų neapima.';
+  return note;
+}
+
 function render(now) {
+  /* An address with no dated container shows only the notice. Falling through
+     would render the shipped Juragiai dates under this address's name. */
+  if (getUndated().none) {
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+    app.appendChild(undatedNotice());
+    return;
+  }
   const today = isoLocal(now);
   const calendar = buildCalendar();
   const upcoming = calendar.filter(e => e.iso >= today);
@@ -838,6 +889,8 @@ function render(now) {
         <div class="date">Paskutinė data: ${calendar.length ? calendar[calendar.length - 1].iso : '—'}</div>
       </div>
       <footer>${monitor}Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
+    const note = undatedNotice();
+    if (note) app.appendChild(note);
     return;
   }
 
@@ -971,6 +1024,8 @@ function render(now) {
   </footer>`;
 
   app.innerHTML = html;
+  const note = undatedNotice();
+  if (note) app.appendChild(note);
   document.getElementById('ics').addEventListener('click', () => { downloadICS(upcoming); refresh(); });
 
   const more = document.getElementById('more');
@@ -1640,6 +1695,7 @@ function applyActive() {
     setActiveSchedule();          // back to the shipped Juragiai schedule
     setCollected(null);
     setActiveAddress();
+    setUndated();
     document.getElementById('addr').textContent = 'Žalgirio g. 8A, Juragiai';
     refresh();
     return;
@@ -1648,40 +1704,17 @@ function applyActive() {
   setCollected(a.collected);
   setActiveAddress(a.address);
 
-  if (a.schedule && a.schedule.length) {
-    setActiveSchedule(a.schedule);
-    refresh();
-    /* Some containers at this address may have no published dates. Say so
-       rather than letting the schedule read as complete — a bin missing from a
-       schedule the user trusts is the one failure they actually notice. */
-    const dated = new Set(a.schedule.map(c => c.id));
-    const undated = (a.containers || []).filter(c => !dated.has(c.id));
-    if (undated.length) {
-      const names = undated
-        .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
-        .map(m => m.emoji + ' ' + m.label).join(' · ');
-      const note = document.createElement('div');
-      note.className = 'notice';
-      note.style.marginTop = '16px';
-      note.textContent = 'Šiems konteineriams datų kol kas nėra: ' + names
-        + ' (' + undated.map(c => c.id).join(', ') + '). '
-        + 'Rodomas grafikas jų neapima.';
-      document.getElementById('app').appendChild(note);
-    }
-    return;
-  }
-
-  /* No dates at all — make sure a previously selected address's schedule is not
-     left on screen under this one's name. */
-  setActiveSchedule();
-  const types = (a.containers || [])
-    .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
-    .map(m => m.emoji + ' ' + m.label).join(' · ');
-  document.getElementById('app').innerHTML =
-    '<div class="notice">Rasti konteineriai: ' + types
-    + '<br><br>Išvežimo datų šiam adresui operatoriai kol kas neskelbia. '
-    + 'Konteinerių numeriai: '
-    + (a.containers || []).map(c => c.id).join(', ') + '</div>';
+  /* Some containers at this address may have no published dates. Record them for
+     render() rather than drawing here: a notice appended to #app is wiped by the
+     next re-render, and a bin missing from a schedule the user trusts is the one
+     failure they actually notice. */
+  const hasDates = !!(a.schedule && a.schedule.length);
+  const dated = new Set((a.schedule || []).map(c => c.id));
+  const undated = hasDates ? (a.containers || []).filter(c => !dated.has(c.id))
+                           : (a.containers || []);
+  setActiveSchedule(hasDates ? a.schedule : undefined);
+  setUndated(undated, !hasDates);
+  refresh();
 }
 
 function showPage(which) {
