@@ -2,52 +2,14 @@
    the minute-tick re-render reads it, but a fresh open should start compact. */
 let expanded = false;
 
-/* The notices for the active saved address's containers without dates. Built from
-   text nodes: container ids and types come from storage, not from this file. */
-function undatedNotice() {
-  const { containers, none } = getUndated();
-  // `none` with no containers still needs a notice: render() appends it unguarded.
-  if (!containers.length && !none) return null;
-  const note = document.createElement('div');
-  note.className = 'notice';
-  if (none) {
-    const types = containers
-      .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
-      .map(m => m.emoji + ' ' + m.label).join(' · ');
-    note.append('Rasti konteineriai: ' + types, document.createElement('br'),
-      document.createElement('br'),
-      'Išvežimo datų šiam adresui operatoriai kol kas neskelbia. '
-      + 'Konteinerių numeriai: ' + containers.map(c => c.id).join(', '));
-    return note;
-  }
-  const names = containers
-    .map(c => (TYPE_META[c.type] || TYPE_META.OTHER))
-    .map(m => m.emoji + ' ' + m.label).join(' · ');
-  note.style.marginTop = '16px';
-  note.textContent = 'Šiems konteineriams datų kol kas nėra: ' + names
-    + ' (' + containers.map(c => c.id).join(', ') + '). '
-    + 'Rodomas grafikas jų neapima.';
-  return note;
-}
-
 function render(now) {
-  /* An address with no dated container shows only the notice. Falling through
-     would render the shipped Juragiai dates under this address's name. */
-  if (getUndated().none) {
-    const app = document.getElementById('app');
-    app.innerHTML = '';
-    app.appendChild(undatedNotice());
-    return;
-  }
   const today = isoLocal(now);
   const calendar = buildCalendar();
   const upcoming = calendar.filter(e => e.iso >= today);
   const app = document.getElementById('app');
   const checked = getLastChecked();
-  const monitor = isMonitoredSchedule()
-    ? `<div class="monitor"><span aria-hidden="true"></span>Ekonovus · tikrinta ${checked.ekonovus}</div>
-       <div class="monitor"><span aria-hidden="true"></span>Kauno švara · tikrinta ${checked.svara}</div>`
-    : '';
+  const monitor = `<div class="monitor"><span aria-hidden="true"></span>Ekonovus · tikrinta ${checked.ekonovus}</div>
+       <div class="monitor"><span aria-hidden="true"></span>Kauno švara · tikrinta ${checked.svara}</div>`;
 
   if (!upcoming.length) {
     app.innerHTML = `
@@ -57,8 +19,6 @@ function render(now) {
         <div class="date">Paskutinė data: ${calendar.length ? calendar[calendar.length - 1].iso : '—'}</div>
       </div>
       <footer>${monitor}Perscrapink operatorių svetaines ir pergeneruok grafiką.</footer>`;
-    const note = undatedNotice();
-    if (note) app.appendChild(note);
     return;
   }
 
@@ -195,8 +155,6 @@ function render(now) {
   </footer>`;
 
   app.innerHTML = html;
-  const note = undatedNotice();
-  if (note) app.appendChild(note);
   document.getElementById('ics').addEventListener('click', () => { downloadICS(upcoming); refresh(); });
 
   const more = document.getElementById('more');

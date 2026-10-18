@@ -78,17 +78,14 @@ function buildICS(entries) {
 
     lines.push(
       'BEGIN:VEVENT',
-      // Stable UID per day and per address: re-importing updates the event instead of
-      // duplicating it, and two addresses in one calendar do not overwrite each other.
-      // Žalgirio keeps the original date-only form because those events are already
-      // in the user's calendar.
-      fold(`UID:${uidFor(compact)}`),
+      // Stable UID per day: re-importing updates the event instead of duplicating it.
+      fold(`UID:binday-${compact}@binday.local`),
       `DTSTAMP:${stamp(now)}`,
       `DTSTART;VALUE=DATE:${compact}`,
       `DTEND;VALUE=DATE:${end}`,
       fold(`SUMMARY:${marks} ${icsEscape(names)}`),
       fold(`DESCRIPTION:${icsEscape(detail)}`),
-      fold(`LOCATION:${icsEscape(getActiveAddress())}`),
+      fold(`LOCATION:${icsEscape(ADDRESS)}`),
       // Honoured by Apple Calendar and anything else implementing RFC 7986;
       // harmless where it isn't. A day can hold several bins but only one colour,
       // so it goes to the rarest one due — glass never falls on its own here, and
@@ -135,29 +132,12 @@ function downloadICS(entries) {
    only knows what it handed over, so "atsisiųsta" means "the file was downloaded
    here"; whether it was imported is unknown.
 
-   Keyed by the address's container ids rather than the saved-address index: the
-   index shifts when an address is removed, the containers do not. Each pickup is
+   Keyed by the container ids. Each pickup is
    stored as "date|ids", so a bin added to an existing day counts as a change. */
 const CAL_STORE = 'binday.calendar';
 
 function calendarKey() {
   return getSchedule().map(c => c.id).sort().join(',');
-}
-
-/* FNV-1a, 32-bit. Only needs to tell addresses apart inside one UID, not resist attack. */
-function hash32(s) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
-}
-
-function uidFor(compact) {
-  return isMonitoredSchedule()
-    ? `binday-${compact}@binday.local`
-    : `binday-${compact}-${hash32(calendarKey())}@binday.local`;
 }
 
 function pickupSig(e) {
