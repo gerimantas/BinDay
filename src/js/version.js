@@ -120,22 +120,29 @@ async function currentCacheName() {
   return keys.find(k => k.startsWith('binday-')) || 'binday-data';
 }
 
-/* Re-resolve the active saved address from the refreshed data, so a corrected
-   schedule is actually shown rather than sitting in the cache unused. */
+/* Re-resolve every saved address in the refreshed areas, not only the active
+   one: an inactive entry would otherwise keep serving old dates until picked.
+   Entries without a `key` cannot be matched and are left untouched. */
 async function applyNewData(slugs) {
-  const a = saved.list[saved.active];
-  if (!a || !a.key || !slugs.includes(a.area)) return false;
-  try {
-    const rows = await getArea(a.area);
-    const hit = rows.find(r => r.key === a.key);
-    if (!hit) return false;
-    a.address = hit.address;
-    a.containers = hit.containers.map(c => ({ id: c.id, type: c.type,
-                                              operator: c.operator }));
-    a.schedule = scheduleFor(hit);
-    a.collected = areaCollected.get(a.area) || null;
-    persist(saved);
-    applyActive();
-    return true;
-  } catch (e) { return false; }
+  let touched = false;
+  for (const a of saved.list) {
+    if (!a.key || !slugs.includes(a.area)) continue;
+    try {
+      const rows = await getArea(a.area);
+      const hit = rows.find(r => r.key === a.key);
+      // Gone from the new data: keep the old schedule rather than dropping a
+      // saved address the user still relies on.
+      if (!hit) continue;
+      a.address = hit.address;
+      a.containers = hit.containers.map(c => ({ id: c.id, type: c.type,
+                                                operator: c.operator }));
+      a.schedule = scheduleFor(hit);
+      a.collected = areaCollected.get(a.area) || null;
+      touched = true;
+    } catch (e) { /* keep this entry as it was and carry on with the rest */ }
+  }
+  if (!touched) return false;
+  persist(saved);
+  applyActive();
+  return true;
 }
