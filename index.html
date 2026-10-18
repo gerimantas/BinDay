@@ -839,7 +839,8 @@ let expanded = false;
    text nodes: container ids and types come from storage, not from this file. */
 function undatedNotice() {
   const { containers, none } = getUndated();
-  if (!containers.length) return null;
+  // `none` with no containers still needs a notice: render() appends it unguarded.
+  if (!containers.length && !none) return null;
   const note = document.createElement('div');
   note.className = 'notice';
   if (none) {
